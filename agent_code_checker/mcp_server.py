@@ -29,6 +29,7 @@ async def evaluate(
     reasoning_effort: str | None = None,
     batch_size: int = 10,
     language: str | None = None,
+    prompt_language: str = "auto",
     debug: bool = False,
 ) -> dict:
     """Evaluate a code snippet or file with batched LLM checks."""
@@ -42,7 +43,9 @@ async def evaluate(
         raise ValueError("Project scanning is not implemented; no model calls were made")
     else:
         raise ValueError("target_type must be snippet or file")
-    evaluation_profile = load_code_smells_profile(rule_ids=rules)
+    evaluation_profile = load_code_smells_profile(
+        rule_ids=rules, prompt_language=prompt_language,
+    )
     agent_provider = agent_bridge_provider_from_name(provider)
     report = await EvaluationService(agent_provider).evaluate(
         evaluation_target,

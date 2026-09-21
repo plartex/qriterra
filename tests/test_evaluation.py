@@ -50,6 +50,36 @@ class CatalogAndBatchingTest(unittest.TestCase):
         self.assertEqual(len({rule.id for rule in profile.rules}), 80)
         self.assertEqual(profile.rules[0].id, "long_method")
         self.assertEqual(profile.rules[-1].id, "duplicated_derived_state")
+        self.assertEqual(profile.prompt_language, "en")
+        self.assertTrue(all(rule.criterion_en for rule in profile.rules))
+
+    def test_english_prompt_is_compact_and_russian_source_is_retained(self):
+        english = load_code_smells_profile(rule_ids=["long_method"])
+        russian = load_code_smells_profile(
+            rule_ids=["long_method"], prompt_language="ru",
+        )
+        english_rule = english.rules[0].prompt_dict()
+        russian_rule = russian.rules[0].prompt_dict()
+        self.assertEqual(english_rule["title"], "Long Method")
+        self.assertIn("criterion", english_rule)
+        self.assertNotIn("definition", english_rule)
+        self.assertIn("definition", russian_rule)
+        self.assertEqual(english.rules[0].title, russian.rules[0].title)
+        self.assertLess(
+            len(json.dumps(english_rule, ensure_ascii=False)),
+            len(json.dumps(russian_rule, ensure_ascii=False)),
+        )
+
+    def test_custom_catalog_uses_russian_unless_english_is_requested(self):
+        from agent_code_checker.catalog import DEFAULT_CODE_SMELLS_CATALOG
+
+        with tempfile.TemporaryDirectory() as folder:
+            copied = Path(folder) / "custom.json"
+            copied.write_bytes(DEFAULT_CODE_SMELLS_CATALOG.read_bytes())
+            profile = load_code_smells_profile(copied, rule_ids=["long_method"])
+            self.assertEqual(profile.prompt_language, "ru")
+            with self.assertRaisesRegex(ValueError, "only available for the bundled"):
+                load_code_smells_profile(copied, prompt_language="en")
 
     def test_batches_are_bounded_and_complete(self):
         rules = load_code_smells_profile().rules

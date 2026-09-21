@@ -27,6 +27,10 @@ def main() -> None:
     evaluate.add_argument("--model")
     evaluate.add_argument("--reasoning-effort")
     evaluate.add_argument("--catalog", type=Path, help="Override the bundled code-smells catalog")
+    evaluate.add_argument(
+        "--prompt-language", choices=["auto", "en", "ru"], default="auto",
+        help="LLM-facing rule language; auto uses English for the bundled catalog",
+    )
     evaluate.add_argument("--json", action="store_true", dest="json_output")
     evaluate.add_argument(
         "--debug", action="store_true",
@@ -53,7 +57,9 @@ def main() -> None:
     rule_ids = None
     if args.rules:
         rule_ids = [item.strip() for item in args.rules.split(",") if item.strip()]
-    profile = load_code_smells_profile(args.catalog, rule_ids=rule_ids)
+    profile = load_code_smells_profile(
+        args.catalog, rule_ids=rule_ids, prompt_language=args.prompt_language,
+    )
     provider = agent_bridge_provider_from_name(args.provider)
     try:
         report = asyncio.run(

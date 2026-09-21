@@ -1,0 +1,326 @@
+{
+  "schema_version": "1.0",
+  "source_catalog_sha256": "47e93734ba2ec951fa9a718c7828a0bdfc9d72ca3bafc6ca1580b944091f8450",
+  "rules": [
+    {
+      "id": "long_method",
+      "criterion_en": "The function or method body exceeds typical length thresholds (typically over 20-30 lines of code). It mixes distinct levels of abstraction, interleaving business logic, validation, data formatting, and low-level operations within a single scope."
+    },
+    {
+      "id": "large_class",
+      "criterion_en": "A single class aggregates dozens of fields and hundreds of methods, centralizing the majority of domain processes. Collaborating domain classes are relegated to passive data holders lacking significant behavior."
+    },
+    {
+      "id": "primitive_obsession",
+      "criterion_en": "Core domain concepts (such as monetary amounts, phone numbers, date ranges, or physical units) are modeled using primitive types rather than dedicated Value Objects. Validation, formatting, and manipulation logic for these primitives are duplicated across call sites."
+    },
+    {
+      "id": "long_parameter_list",
+      "criterion_en": "A method or constructor signature declares an excessive number of parameters (typically more than 3-4 formal arguments). The signature lacks encapsulation into parameter objects, making call sites fragile to ordering mistakes and signature changes."
+    },
+    {
+      "id": "data_clumps",
+      "criterion_en": "Identical groups of three or more variables repeatedly appear together across different classes, method parameter signatures, or data structures. These related variables are manipulated in unison without being encapsulated into a dedicated class or type."
+    },
+    {
+      "id": "combinatorial_explosion",
+      "criterion_en": "A class introduces separate methods for every permutation of query parameters, conditions, or input/output formats instead of leveraging composable abstractions. Method counts escalate predictably with each newly supported filter or attribute combination."
+    },
+    {
+      "id": "long_chain_of_calls",
+      "criterion_en": "Client code invokes chained method calls navigating across multiple intermediary objects (e.g., a.getB().getC().getD()). This tightly couples the caller to the internal object topology and violates the Law of Demeter."
+    },
+    {
+      "id": "switch_statements",
+      "criterion_en": "Branching conditionals or switch/case statements select domain behavior based on explicit type codes or enum values across multiple methods or classes. Adding a new type requires locating and modifying each dispersed conditional branch rather than adding a polymorphic class."
+    },
+    {
+      "id": "refused_bequest",
+      "criterion_en": "A subclass inherits methods or state from a parent class that it does not use, or overrides parent methods to throw UnsupportedOperationException. This violates the Liskov Substitution Principle by breaking expected parent contract semantics."
+    },
+    {
+      "id": "alternative_classes_different_interfaces",
+      "criterion_en": "Two or more classes provide functionally identical operations but expose disparate method names and incompatible signatures. They lack a common interface, base abstraction, or adapter unifying their invocation contracts."
+    },
+    {
+      "id": "temporary_field",
+      "criterion_en": "An instance field holds state only during execution of a specific algorithm or under rare circumstances, remaining null or undefined otherwise. The field pollutes object invariants with temporary calculation scratchpad variables."
+    },
+    {
+      "id": "anemic_domain_model",
+      "criterion_en": "Domain entity classes consist solely of fields, getters, and setters without internal business logic or invariant enforcement. Domain operations and validation rules are entirely relocated into external procedural service classes."
+    },
+    {
+      "id": "type_introspection_downcasting",
+      "criterion_en": "Code bypasses polymorphic dispatch by checking an object's concrete subtype via type introspection operators (e.g., instanceof, is, as) and explicitly downcasting. This indicates missing abstraction in the shared interface."
+    },
+    {
+      "id": "freeloader_interface",
+      "criterion_en": "An interface is declared with zero methods strictly for marker purposes, or an interface is created for a class that has exactly one trivial implementation without necessity. It introduces maintenance indirection without architectural value."
+    },
+    {
+      "id": "divergent_change",
+      "criterion_en": "A single class requires modifications in response to multiple unrelated domain requirements or orthogonal operational concerns (such as database persistence, UI rendering, and calculation logic). This indicates a violation of the Single Responsibility Principle."
+    },
+    {
+      "id": "shotgun_surgery",
+      "criterion_en": "A single logical change, such as adding an entity field or status, necessitates simultaneous small edits across numerous files and classes throughout the codebase. The responsibility is fragmented across multiple disparate components."
+    },
+    {
+      "id": "parallel_inheritance_hierarchies",
+      "criterion_en": "Introducing a subclass in one inheritance tree mandates the simultaneous creation of a corresponding subclass in a separate hierarchy. Subclass prefixes or domains across the distinct hierarchies mirror each other synchronously."
+    },
+    {
+      "id": "duplicate_code",
+      "criterion_en": "Identical or near-identical source code sequences appear in two or more distinct locations within the codebase. The repeated logic lacks extraction into a shared function, method, or reusable component."
+    },
+    {
+      "id": "dead_code",
+      "criterion_en": "Variables, parameters, imports, methods, or entire classes exist in the codebase but are never invoked, referenced, or reachable during execution. Commented-out code blocks and unreachable conditional branches also satisfy this criterion."
+    },
+    {
+      "id": "lazy_class",
+      "criterion_en": "A class performs insufficient work to justify its maintenance overhead, containing only one or two trivial pass-through methods. It functions merely as redundant indirection or represents the hollow remnant of prior refactoring."
+    },
+    {
+      "id": "data_class",
+      "criterion_en": "The class contains only data fields and trivial accessors (getters/setters) without business logic or invariant validation. External objects directly manipulate its fields or accessors to perform computations, inducing Feature Envy."
+    },
+    {
+      "id": "speculative_generality",
+      "criterion_en": "Code introduces complex abstractions, unused interface hierarchies, generic hooks, or parameter placeholders to support hypothetical future requirements. These theoretical extension points remain unutilized by current business logic, violating the YAGNI principle."
+    },
+    {
+      "id": "comments_as_deodorant",
+      "criterion_en": "Explanatory comments are used as a substitute for clean code, attempting to clarify obscure control flow, cryptic identifiers, or poorly factored algorithms. Rather than self-documenting via refactoring, comments compensate for structural code deficiencies."
+    },
+    {
+      "id": "redundant_wrapper",
+      "criterion_en": "A method or function merely delegates its invocation directly to an underlying object with identical arguments without transforming data, adding behavior, or altering semantics. It introduces unnecessary indirection without architectural value."
+    },
+    {
+      "id": "feature_envy",
+      "criterion_en": "A method accesses data and accessors of an external object more frequently than its own enclosing class's fields or methods. The method's computations logically belong inside the external class being accessed."
+    },
+    {
+      "id": "inappropriate_intimacy",
+      "criterion_en": "Two classes maintain excessive coupling by accessing each other's non-public fields, internal data structures, or private implementation mechanisms. This bidirectional entanglement breaks encapsulation and prevents modifying one class without altering the other."
+    },
+    {
+      "id": "message_chains",
+      "criterion_en": "Client code performs a consecutive series of navigation calls across dependent objects (e.g., a.getB().getC().getValue()). The client becomes tightly bound to the internal navigation structure of intermediate abstractions."
+    },
+    {
+      "id": "middle_man",
+      "criterion_en": "A class excessively delegates its responsibilities, where the majority of its methods do nothing beyond forwarding calls to a delegate object. The class serves primarily as a hollow intermediary rather than performing meaningful domain logic."
+    },
+    {
+      "id": "insider_trading",
+      "criterion_en": "Modules or packages designed to remain isolated exchange non-public data, access internal files, or exploit private communication channels bypassing declared architectural boundaries. This introduces hidden coupling between components outside public contracts."
+    },
+    {
+      "id": "incomplete_library_class",
+      "criterion_en": "An external library lacks a critical domain or utility method, causing developers to duplicate ad-hoc compensation helper routines across multiple application sites. These recurring helpers are scattered rather than centralized into a formal extension abstraction."
+    },
+    {
+      "id": "hidden_side_effects",
+      "criterion_en": "A function whose name and signature imply a pure query or check performs unexpected state mutations or I/O operations (e.g., updating databases or emitting network calls). This violates Command-Query Separation and causes unintentional state side effects."
+    },
+    {
+      "id": "mutating_input_arguments",
+      "criterion_en": "A function mutates an input argument object or collection in place rather than returning a newly constructed result. This alters the caller's state unexpectedly and introduces hard-to-track side effects."
+    },
+    {
+      "id": "deeply_nested_code",
+      "criterion_en": "Control flow reaches excessive indentation depths (typically 4 or more nested levels) through nested conditionals, loops, or try/catch blocks. This forms an 'arrow anti-pattern' that severely hinders readability."
+    },
+    {
+      "id": "flag_argument",
+      "criterion_en": "A boolean literal or flag argument is passed to a method to toggle between distinct internal execution branches. This forces a single method to handle multiple unrelated responsibilities based on parameter state."
+    },
+    {
+      "id": "output_parameters",
+      "criterion_en": "A method returns computed results by mutating input arguments or utilizing explicit output references (e.g., out, ref, or pointers) instead of a standard return value. This subverts the expected convention where parameters serve exclusively as inputs."
+    },
+    {
+      "id": "premature_optimization",
+      "criterion_en": "Code employs complex low-level optimizations (such as manual memory pooling or bit-manipulation tricks) without profiler-verified performance bottlenecks. Clarity and maintainability are sacrificed in low-throughput execution paths."
+    },
+    {
+      "id": "magic_numbers_strings",
+      "criterion_en": "Unexplained numeric or string literals appear directly inside algorithmic expressions and conditional comparisons without being assigned to named constants. The underlying semantic meaning and intent of the literal values remain undeclared."
+    },
+    {
+      "id": "temporal_coupling",
+      "criterion_en": "Class methods require execution in a rigid sequential order (e.g., initialize, configure, execute) that is not enforced at compile time. Failure to execute prerequisite steps yields unhandled runtime failures or invalid state."
+    },
+    {
+      "id": "swallow_exception",
+      "criterion_en": "A catch block captures an exception but leaves the handling body empty, comments it out, or suppresses it without logging or re-throwing. Failure causes silent state corruption and prevents diagnosing runtime errors."
+    },
+    {
+      "id": "catch_generic_exception",
+      "criterion_en": "A catch clause traps top-level generic base types (e.g., Exception, Throwable) instead of specific anticipated exceptions. This indiscriminately intercepts critical system crashes, programming bugs, and syntax faults alongside recoverable application errors."
+    },
+    {
+      "id": "throw_generic_exception",
+      "criterion_en": "Code instantiates and raises top-level generic exception types (such as Exception or Error) instead of specific domain exception classes. Callers cannot selectively catch distinct domain failures without resorting to broad error trapping or fragile message parsing."
+    },
+    {
+      "id": "destructive_rethrow",
+      "criterion_en": "A caught exception variable is re-thrown directly (e.g., throw ex; or raise e) rather than using clean re-throw syntax or cause chaining. This resets the call stack to the current statement and destroys the original failure trace."
+    },
+    {
+      "id": "log_and_throw",
+      "criterion_en": "An exception is caught, logged via a logging framework, and immediately re-thrown at intermediate architectural layers. This redundantly records the identical exception across multiple layers, flooding log monitors with duplicated stack traces."
+    },
+    {
+      "id": "exception_as_flow_control",
+      "criterion_en": "Exceptions are thrown and caught to manage routine, expected control flow (such as missing records, validation failures, or file termination) instead of conditional branches. This incurs substantial stack-trace generation overhead and obscures control flow."
+    },
+    {
+      "id": "return_null_on_error",
+      "criterion_en": "A method returns null to signal an operational failure or missing data instead of throwing a domain exception or returning an explicit Result/Optional container. This forces caller sites to proliferate null checks or risk unhandled NullReferenceExceptions."
+    },
+    {
+      "id": "busy_waiting",
+      "criterion_en": "A thread repeatedly polls a condition inside a tight loop without thread sleeping, yielding, or using signaling synchronization primitives (such as wait handles or futures). This induces 100% CPU core utilization while idling."
+    },
+    {
+      "id": "unprotected_shared_state",
+      "criterion_en": "Multiple concurrent threads read and mutate shared variables, collections, or object state without synchronization primitives, memory barriers, or atomic operations. This introduces data races and non-deterministic memory corruption."
+    },
+    {
+      "id": "broken_double_checked_locking",
+      "criterion_en": "Lazy singleton initialization implements double-checked null locking on a shared instance field without declaring it volatile or applying memory fences. Compiler or hardware instruction reordering can expose a partially constructed instance to concurrent threads."
+    },
+    {
+      "id": "blocking_async_code",
+      "criterion_en": "Asynchronous operations are synchronously blocked using blocking properties or methods (such as .Result, .Wait(), or GetAwaiter().GetResult()) instead of await. This causes thread pool starvation and induces deadlocks in single-threaded synchronization contexts."
+    },
+    {
+      "id": "unhandled_fire_and_forget",
+      "criterion_en": "An asynchronous task or promise is invoked without await, return, or failure-handling callbacks. Unobserved exceptions escape silently into unhandled task rejections, risking abrupt process termination."
+    },
+    {
+      "id": "non_thread_safe_singleton",
+      "criterion_en": "A singleton-scoped service retains mutable instance fields accessed across concurrent client requests without thread-safety controls. Concurrent requests overwrite each other's state, leading to cross-request data leaks and race conditions."
+    },
+    {
+      "id": "god_object_brain_class",
+      "criterion_en": "A central architectural component or monolithic coordinator aggregates incoming dependencies from across the system and orchestrates numerous domain subsystems. Any modification to this core hub risks cascading failures and requires widespread rebuilds."
+    },
+    {
+      "id": "spaghetti_code",
+      "criterion_en": "The codebase lacks architectural layers, exhibiting tangled bidirectional calls, scattered global state mutations, and unconstrained control flow. Higher-level presentation or UI logic interacts directly with low-level device or database drivers without separation."
+    },
+    {
+      "id": "cyclic_dependency",
+      "criterion_en": "Two or more modules or packages depend directly or transitively upon one another, creating a closed dependency loop (A -> B -> C -> A). This violates the Acyclic Dependencies Principle and prevents modular compilation, testing, or isolated deployment."
+    },
+    {
+      "id": "leaky_abstraction",
+      "criterion_en": "An abstraction exposes implementation details of underlying technologies through its public API, such as leaking vendor-specific database exceptions or network protocol headers into domain contracts. Callers are forced to handle lower-level technical concerns directly."
+    },
+    {
+      "id": "interface_bloat",
+      "criterion_en": "An interface aggregates an excessive number of heterogeneous methods covering unrelated domain operations. Implementing classes are forced to implement unneeded methods with empty stubs or throw UnsupportedOperationException, violating the Interface Segregation Principle."
+    },
+    {
+      "id": "layer_violation",
+      "criterion_en": "High-level components (such as UI, presentation, or controllers) directly invoke low-level infrastructure or database entities, completely bypassing intermediate application and domain layers. This breaches established multi-tier architectural boundaries."
+    },
+    {
+      "id": "hardcoded_environment_config",
+      "criterion_en": "Environment-dependent configurations (such as base URLs, network ports, and absolute file system paths) are hardcoded directly into source code rather than externalized into environment variables or configuration files. This prevents continuous delivery across distinct deployment tiers."
+    },
+    {
+      "id": "assertion_roulette",
+      "criterion_en": "A single test method executes multiple assert or expect statements sequentially without providing explanatory failure messages. When a failure occurs during automated test runs, the exact assertion and underlying business condition that broke cannot be distinguished without debugging."
+    },
+    {
+      "id": "mystery_guest",
+      "criterion_en": "A test relies on external, implicit state (such as pre-seeded external database tables or shared filesystem files) outside its own setup scope. The origin of test data, IDs, and expected values is obscured from the test body."
+    },
+    {
+      "id": "hardcoded_test_data",
+      "criterion_en": "A test method manually instantiates large, complex fixture objects populated with dozens of irrelevant attributes rather than using focused builders or factories. Only one or two fields affect the scenario, obscuring the decisive test variables with informational noise."
+    },
+    {
+      "id": "eager_test",
+      "criterion_en": "A single test method exercises multiple distinct, heterogeneous scenarios across an object's lifecycle rather than verifying a solitary behavior. The bloated test fails for multiple disparate reasons and obscures the root cause of regressions."
+    },
+    {
+      "id": "sleepy_flaky_test",
+      "criterion_en": "A test relies on hardcoded time delays (e.g., Thread.sleep, setTimeout) to await asynchronous operations instead of explicit condition polling or event listeners. This introduces test flakiness on slower execution environments and inflates test suite execution durations."
+    },
+    {
+      "id": "conditional_test_logic",
+      "criterion_en": "A test method contains branching or looping control structures (such as if/else, switch, for, or while). Complex test logic creates non-deterministic execution paths where assertions can be silently bypassed under certain conditions."
+    },
+    {
+      "id": "test_code_in_production",
+      "criterion_en": "Production code incorporates conditional checks for testing environments (e.g., if (IS_TEST_ENV)) or exposes public methods purely for test accessibility. This bifurcates production execution paths from test execution and introduces security backdoors."
+    },
+    {
+      "id": "ignored_disabled_test_rot",
+      "criterion_en": "Failing or flaky tests are suppressed using disable annotations (e.g., @Ignore, @Disabled, xit, test.skip) or commented out instead of resolving the underlying defect. These dormant tests accumulate over time, degrading test suite coverage and suffering bit rot."
+    },
+    {
+      "id": "n_plus_one_queries",
+      "criterion_en": "An initial query retrieves N parent records, followed by N distinct subsequent queries executed in a loop to fetch related child entities. This cascades database network requests instead of fetching related records via joins or eager batching."
+    },
+    {
+      "id": "in_memory_data_filtration",
+      "criterion_en": "An application executes an unbounded SELECT query to load large datasets into memory and subsequently filters, sorts, or paginates rows using application-level code instead of database WHERE and LIMIT clauses. This causes high latency and OutOfMemoryError exceptions."
+    },
+    {
+      "id": "god_table",
+      "criterion_en": "A single database table accumulates dozens or hundreds of heterogeneous columns spanning unrelated domain processes. Most attributes contain NULL values for any given row, degrading normalization, indexing efficiency, and disk I/O performance."
+    },
+    {
+      "id": "sql_injection_concatenation",
+      "criterion_en": "Dynamic SQL queries are constructed by concatenating unsanitized external or user-controlled input strings directly into the command text rather than utilizing parameterized queries or positional placeholders. This exposes the database engine to arbitrary command injection."
+    },
+    {
+      "id": "unindexed_foreign_keys",
+      "criterion_en": "Foreign key columns or frequently queried filter fields lack corresponding database indexes. Queries performing joins, deletions, or filtered lookups degrade into full sequential table scans that lock tables and degrade throughput."
+    },
+    {
+      "id": "hardcoded_credentials",
+      "criterion_en": "Sensitive credentials (including passwords, private cryptographic keys, API access tokens, and JWT secrets) are embedded as hardcoded string literals directly within source code. Exposing the repository compromises infrastructure authentication credentials."
+    },
+    {
+      "id": "resource_leak",
+      "criterion_en": "Operating system resources (such as file descriptors, network sockets, database connections, or graphical handles) are acquired without guaranteed reclamation via finally blocks, using declarations, or try-with-resources. Unreleased resources exhaust OS limits and crash services."
+    },
+    {
+      "id": "sensitive_data_exposure_logging",
+      "criterion_en": "Logging statements write unmasked sensitive data (such as plaintext passwords, credit card numbers (PAN), session tokens, or personally identifiable information) directly to output streams. This exposes confidential credentials to centralized logging aggregation systems."
+    },
+    {
+      "id": "disabled_certificate_validation",
+      "criterion_en": "TLS/SSL certificate validation is explicitly disabled by bypassing trust chain checks or hostname verification (e.g., rejectUnauthorized: false). This leaves encrypted communication channels vulnerable to Man-in-the-Middle (MitM) interception and payload tampering."
+    },
+    {
+      "id": "prop_drilling",
+      "criterion_en": "Props or callback parameters are forwarded through multiple intermediate UI components that do not consume them, purely to reach a deeply nested descendant component. This couples intermediate presentation components to data structures they do not utilize."
+    },
+    {
+      "id": "direct_dom_manipulation",
+      "criterion_en": "Imperative DOM mutation methods (e.g., document.querySelector, innerHTML, classList.add) are invoked directly inside declarative UI frameworks rather than updating state bindings. This bypasses the virtual DOM, corrupting reconciliation state and rendering out-of-sync visual artifacts."
+    },
+    {
+      "id": "giant_god_component",
+      "criterion_en": "A single UI component file exceeds recommended size boundaries (e.g., over 500 lines), entangling local state hooks, side effects, API fetch operations, and extensive markup. The component lacks separation of presentation from business logic."
+    },
+    {
+      "id": "zombie_subscriptions_leak",
+      "criterion_en": "A component establishes persistent event listeners, timers (e.g., setInterval), or WebSocket subscriptions within lifecycle hooks without providing a cleanup or teardown function on unmount. Abandoned handlers persist in memory, leaking resources and executing against unmounted components."
+    },
+    {
+      "id": "duplicated_derived_state",
+      "criterion_en": "Redundant state variables are allocated to hold values that can be computed synchronously on the fly from existing props or primary state. Developers rely on complex synchronization effects to keep derived values aligned, introducing state desynchronization bugs."
+    }
+  ]
+}

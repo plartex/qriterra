@@ -84,8 +84,17 @@ class RuleDefinition:
     detection_hints: dict[str, str]
     tags: tuple[str, ...] = ()
     executor: str = "llm"
+    criterion_en: str | None = None
 
     def prompt_dict(self) -> dict[str, Any]:
+        if self.criterion_en is not None:
+            return {
+                "id": self.id,
+                "title": self.title_en,
+                "severity": self.severity,
+                "scope": self.scope,
+                "criterion": self.criterion_en,
+            }
         return {
             "id": self.id,
             "title": self.title,
@@ -106,6 +115,7 @@ class EvaluationProfile:
     version: str
     catalog_sha256: str
     rules: tuple[RuleDefinition, ...]
+    prompt_language: str = "ru"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -113,6 +123,7 @@ class EvaluationProfile:
             "title": self.title,
             "version": self.version,
             "catalog_sha256": self.catalog_sha256,
+            "prompt_language": self.prompt_language,
         }
 
 
