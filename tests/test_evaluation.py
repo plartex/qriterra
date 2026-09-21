@@ -2,6 +2,9 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock
+
+from agent_bridge import BridgeResult
 
 from agent_code_checker import (
     EvaluationService,
@@ -129,6 +132,159 @@ class CatalogAndBatchingTest(unittest.TestCase):
 
 
 class EvaluationServiceTest(unittest.IsolatedAsyncioTestCase):
+    async def test_bridge_session_reuses_target_and_reports_per_turn_usage(self):
+        profile = load_code_smells_profile(rule_ids=["long_method", "large_class"])
+        provider = AgentBridgeProvider("http://127.0.0.1:8766", "antigravity")
+        prompts = []
+        settings = []
+
+        class RecordingSession:
+            id = "11111111-1111-4111-8111-111111111111"
+            closed = False
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                self.closed = True
+
+            async def ask(self, prompt):
+                prompts.append(prompt)
+                return BridgeResult(
+                    "http://127.0.0.1:8766", None, self.id,
+                    "TASK_STATE_COMPLETED",
+                    response_for(prompt, lambda rule: {
+                        "rule_id": rule["id"], "status": "passed",
+                        "confidence": 1.0, "evidence": [],
+                    }),
+                    {"input_tokens": 100 + len(prompts), "cache_read_tokens": 10},
+                )
+
+        session = RecordingSession()
+
+        def open_session(url, *, model, reasoning_effort, read_only):
+            settings.append((url, model, reasoning_effort, read_only))
+            return session
+
+        provider.client.session = open_session
+        report = await EvaluationService(provider).evaluate(
+            EvaluationTarget.snippet("unique_source_marker = 42"), profile,
+            model="chosen-model", reasoning_effort="medium", debug=True,
+        )
+
+        self.assertEqual(report.summary.passed, 2)
+        self.assertEqual(len(prompts), 2)
+        self.assertIn("unique_source_marker", prompts[0])
+        self.assertNotIn("unique_source_marker", prompts[1])
+        self.assertEqual(request_from_prompt(prompts[1])["batch_id"], "batch-0002")
+        self.assertEqual(settings, [("http://127.0.0.1:8766", "chosen-model", "medium", False)])
+        self.assertTrue(session.closed)
+        events = [event["event"] for event in report.debug_trace]
+        self.assertIn("session_opened", events)
+        self.assertIn("session_closed", events)
+        self.assertEqual(report.debug_trace[-1]["usage_totals"]["input_tokens"], 203)
+        self.assertEqual(report.debug_trace[-1]["usage_totals"]["cache_read_tokens"], 20)
+
+    async def test_bridge_no_session_sends_full_target_for_each_batch(self):
+        profile = load_code_smells_profile(rule_ids=["long_method", "large_class"])
+        provider = AgentBridgeProvider("http://127.0.0.1:8766", "antigravity")
+        prompts = []
+
+        async def ask(url, prompt, **kwargs):
+            prompts.append(prompt)
+            return BridgeResult(
+                url, None, None, "TASK_STATE_COMPLETED",
+                response_for(prompt, lambda rule: {
+                    "rule_id": rule["id"], "status": "passed",
+                    "confidence": 1.0, "evidence": [],
+                }),
+            )
+
+        provider.client.ask = AsyncMock(side_effect=ask)
+        report = await EvaluationService(provider).evaluate(
+            EvaluationTarget.snippet("unique_source_marker = 42"), profile,
+            use_session=False,
+        )
+        self.assertEqual(report.summary.passed, 2)
+        self.assertEqual(len(prompts), 2)
+        self.assertTrue(all("unique_source_marker" in prompt for prompt in prompts))
+
+    async def test_session_repair_does_not_resend_target(self):
+        profile = load_code_smells_profile(rule_ids=["long_method", "large_class"])
+        provider = AgentBridgeProvider("http://127.0.0.1:8766", "antigravity")
+        prompts = []
+
+        class RepairSession:
+            id = "33333333-3333-4333-8333-333333333333"
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                pass
+
+            async def ask(self, prompt):
+                prompts.append(prompt)
+                if len(prompts) == 1:
+                    answer = "not json"
+                else:
+                    batch_prompt = prompts[0] if len(prompts) == 2 else prompt
+                    answer = response_for(batch_prompt, lambda rule: {
+                        "rule_id": rule["id"], "status": "passed",
+                        "confidence": 1.0, "evidence": [],
+                    })
+                return BridgeResult(
+                    "http://127.0.0.1:8766", None, self.id,
+                    "TASK_STATE_COMPLETED", answer,
+                )
+
+        provider.client.session = lambda *args, **kwargs: RepairSession()
+        report = await EvaluationService(provider).evaluate(
+            EvaluationTarget.snippet("unique_source_marker = 42"), profile,
+        )
+        self.assertEqual(report.summary.passed, 2)
+        self.assertEqual(len(prompts), 3)
+        self.assertIn("unique_source_marker", prompts[0])
+        self.assertNotIn("unique_source_marker", prompts[1])
+        self.assertNotIn("unique_source_marker", prompts[2])
+        self.assertIn("REPAIR_DATA_JSON", prompts[1])
+
+    async def test_failed_first_session_turn_resends_target_on_next_batch(self):
+        profile = load_code_smells_profile(rule_ids=["long_method", "large_class"])
+        provider = AgentBridgeProvider("http://127.0.0.1:8766", "antigravity")
+        prompts = []
+
+        class FlakySession:
+            id = "22222222-2222-4222-8222-222222222222"
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                pass
+
+            async def ask(self, prompt):
+                prompts.append(prompt)
+                if len(prompts) == 1:
+                    raise RuntimeError("transport failed")
+                return BridgeResult(
+                    "http://127.0.0.1:8766", None, self.id,
+                    "TASK_STATE_COMPLETED",
+                    response_for(prompt, lambda rule: {
+                        "rule_id": rule["id"], "status": "passed",
+                        "confidence": 1.0, "evidence": [],
+                    }),
+                )
+
+        provider.client.session = lambda *args, **kwargs: FlakySession()
+        report = await EvaluationService(provider).evaluate(
+            EvaluationTarget.snippet("unique_source_marker = 42"), profile,
+        )
+        self.assertEqual(report.summary.errors, 1)
+        self.assertEqual(report.summary.passed, 1)
+        self.assertEqual(len(prompts), 2)
+        self.assertTrue(all("unique_source_marker" in prompt for prompt in prompts))
+
     async def test_project_target_rejected_before_model_call_for_fixed_workspace_bridge(self):
         with tempfile.TemporaryDirectory() as folder:
             provider = AgentBridgeProvider("http://127.0.0.1:1", "antigravity")

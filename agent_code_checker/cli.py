@@ -23,6 +23,10 @@ def main() -> None:
     evaluate.add_argument("--profile", default="code_smells", choices=["code_smells"])
     evaluate.add_argument("--rules", help="Comma-separated rule IDs; defaults to every profile rule")
     evaluate.add_argument("--batch-size", type=int, default=10)
+    evaluate.add_argument(
+        "--no-session", action="store_true",
+        help="Use an independent agent request for every batch (comparison/fallback)",
+    )
     evaluate.add_argument("--provider", default="agent-bridge:codex")
     evaluate.add_argument("--model")
     evaluate.add_argument("--reasoning-effort")
@@ -69,6 +73,7 @@ def main() -> None:
                 model=args.model,
                 reasoning_effort=args.reasoning_effort,
                 batch_size=args.batch_size,
+                use_session=not args.no_session,
                 debug=args.debug,
                 on_debug_event=(
                     lambda event: print(

@@ -5,7 +5,11 @@ from __future__ import annotations
 import asyncio
 from time import monotonic
 
-from ..prompting import build_evaluation_prompt, build_repair_prompt
+from ..prompting import (
+    build_evaluation_prompt,
+    build_repair_prompt,
+    build_session_batch_prompt,
+)
 from ..providers.base import AgentProvider, ProviderResponse
 from ..validation import BatchProtocolError, validate_batch_response
 from .base import BatchRequest
@@ -14,11 +18,18 @@ from .base import BatchRequest
 class LlmCheckExecutor:
     id = "llm"
 
-    def __init__(self, provider: AgentProvider):
+    def __init__(self, provider: AgentProvider, *, session_mode: bool = False):
         self.provider = provider
+        self.session_mode = session_mode
+        self._has_target_context = False
 
     async def execute(self, request: BatchRequest):
-        prompt = build_evaluation_prompt(request.batch_id, request.target, request.rules)
+        is_continuation = self.session_mode and self._has_target_context
+        prompt = (
+            build_session_batch_prompt(request.batch_id, request.rules)
+            if is_continuation else
+            build_evaluation_prompt(request.batch_id, request.target, request.rules)
+        )
         async def run(text: str, attempt: int) -> str:
             if request.emit:
                 request.emit("agent_request", {
@@ -54,6 +65,8 @@ class LlmCheckExecutor:
             else:
                 response = await call
             raw = response.text if isinstance(response, ProviderResponse) else response
+            if self.session_mode and not is_continuation:
+                self._has_target_context = True
             if request.emit:
                 request.emit("agent_response", {
                     "batch_id": request.batch_id,
@@ -87,6 +100,7 @@ class LlmCheckExecutor:
                 tuple(rule.id for rule in request.rules),
                 raw,
                 str(first_error),
+                include_original=not self.session_mode,
             )
             repaired = await run(repair, 2)
             try:

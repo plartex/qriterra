@@ -9,7 +9,7 @@ from time import monotonic
 from typing import Any, Callable
 
 from .batching import plan_batches
-from .executors import BatchRequest, LlmCheckExecutor
+from .executors import BatchRequest, CheckExecutor, LlmCheckExecutor
 from .models import CheckResult, EvaluationProfile, EvaluationReport, EvaluationTarget
 from .providers.base import AgentProvider
 from .scoring import summarize
@@ -18,7 +18,7 @@ from .scoring import summarize
 class EvaluationService:
     def __init__(self, provider: AgentProvider):
         self.provider = provider
-        self.executors = {"llm": LlmCheckExecutor(provider)}
+        self.executors: dict[str, CheckExecutor] = {"llm": LlmCheckExecutor(provider)}
 
     async def evaluate(
         self,
@@ -28,6 +28,7 @@ class EvaluationService:
         model: str | None = None,
         reasoning_effort: str | None = None,
         batch_size: int = 10,
+        use_session: bool = True,
         debug: bool = False,
         on_debug_event: Callable[[dict[str, Any]], None] | None = None,
     ) -> EvaluationReport:
@@ -69,58 +70,70 @@ class EvaluationService:
             "batch_size": batch_size,
         })
 
-        for number, rules in enumerate(batches, start=1):
-            executor_ids = {rule.executor for rule in rules}
-            if len(executor_ids) != 1:
-                raise ValueError("A batch cannot mix check executors")
-            executor_id = next(iter(executor_ids))
-            executor = self.executors.get(executor_id)
-            if executor is None:
-                raise ValueError(f"Unknown check executor: {executor_id}")
-            batch_id = f"batch-{number:04d}"
-            batch_started = monotonic()
-            emit("batch_started", {
-                "batch_id": batch_id,
-                "scope": rules[0].scope,
-                "rule_ids": [rule.id for rule in rules],
-            })
-            try:
-                batch_results = await executor.execute(
-                    BatchRequest(
-                        batch_id=batch_id,
-                        target=target,
-                        rules=rules,
-                        model=model,
-                        reasoning_effort=reasoning_effort,
-                        emit=emit if debug else None,
-                    )
-                )
-            except Exception as exc:
-                reason = f"{type(exc).__name__}: {exc}"
-                emit("batch_error", {
+        async def run_batches(executors: dict[str, CheckExecutor]) -> None:
+            for number, rules in enumerate(batches, start=1):
+                executor_ids = {rule.executor for rule in rules}
+                if len(executor_ids) != 1:
+                    raise ValueError("A batch cannot mix check executors")
+                executor_id = next(iter(executor_ids))
+                executor = executors.get(executor_id)
+                if executor is None:
+                    raise ValueError(f"Unknown check executor: {executor_id}")
+                batch_id = f"batch-{number:04d}"
+                batch_started = monotonic()
+                emit("batch_started", {
                     "batch_id": batch_id,
-                    "error_type": type(exc).__name__,
-                    "message": str(exc).splitlines()[0][:300],
+                    "scope": rules[0].scope,
+                    "rule_ids": [rule.id for rule in rules],
                 })
-                warnings.append(f"{batch_id} failed: {reason}")
-                batch_results = tuple(
-                    CheckResult(
-                        rule_id=rule.id,
-                        status="error",
-                        severity=rule.severity,
-                        reason=reason,
+                try:
+                    batch_results = await executor.execute(
+                        BatchRequest(
+                            batch_id=batch_id,
+                            target=target,
+                            rules=rules,
+                            model=model,
+                            reasoning_effort=reasoning_effort,
+                            emit=emit if debug else None,
+                        )
                     )
-                    for rule in rules
-                )
-            for result in batch_results:
-                if result.rule_id in collected:
-                    raise RuntimeError(f"Duplicate aggregated result: {result.rule_id}")
-                collected[result.rule_id] = result
-            emit("batch_finished", {
-                "batch_id": batch_id,
-                "duration_seconds": round(monotonic() - batch_started, 3),
-                "statuses": dict(Counter(item.status for item in batch_results)),
-            })
+                except Exception as exc:
+                    reason = f"{type(exc).__name__}: {exc}"
+                    emit("batch_error", {
+                        "batch_id": batch_id,
+                        "error_type": type(exc).__name__,
+                        "message": str(exc).splitlines()[0][:300],
+                    })
+                    warnings.append(f"{batch_id} failed: {reason}")
+                    batch_results = tuple(
+                        CheckResult(
+                            rule_id=rule.id,
+                            status="error",
+                            severity=rule.severity,
+                            reason=reason,
+                        )
+                        for rule in rules
+                    )
+                for result in batch_results:
+                    if result.rule_id in collected:
+                        raise RuntimeError(f"Duplicate aggregated result: {result.rule_id}")
+                    collected[result.rule_id] = result
+                emit("batch_finished", {
+                    "batch_id": batch_id,
+                    "duration_seconds": round(monotonic() - batch_started, 3),
+                    "statuses": dict(Counter(item.status for item in batch_results)),
+                })
+
+        open_session = getattr(self.provider, "open_session", None)
+        if use_session and len(batches) > 1 and callable(open_session):
+            async with open_session(model=model, reasoning_effort=reasoning_effort) as session_provider:
+                emit("session_opened", {"session_id": session_provider.session_id})
+                executors = dict(self.executors)
+                executors["llm"] = LlmCheckExecutor(session_provider, session_mode=True)
+                await run_batches(executors)
+            emit("session_closed", {"session_id": session_provider.session_id})
+        else:
+            await run_batches(self.executors)
 
         ordered = tuple(collected[rule.id] for rule in profile.rules)
         usage_totals: Counter[str] = Counter()

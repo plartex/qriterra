@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Aleksandr Kovalenko" }]
 dependencies = [
-  "codex-antigravity-a2a-bridge>=0.1,<1",
+  "codex-antigravity-a2a-bridge>=0.2,<1",
   "mcp>=1.30,<2",
 ]
 

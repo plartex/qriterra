@@ -30,6 +30,7 @@ async def evaluate(
     batch_size: int = 10,
     language: str | None = None,
     prompt_language: str = "auto",
+    use_session: bool = True,
     debug: bool = False,
 ) -> dict:
     """Evaluate a code snippet or file with batched LLM checks."""
@@ -53,6 +54,7 @@ async def evaluate(
         model=model,
         reasoning_effort=reasoning_effort,
         batch_size=batch_size,
+        use_session=use_session,
         debug=debug,
     )
     return report.to_dict()
