@@ -22,7 +22,7 @@ Set-Location ..\agent-code-checker
 Поставьте обе библиотеки в одно окружение (первая команда нужна один раз):
 
 ```powershell
-py -m venv .venv
+& ..\agent-bridge\.venv\Scripts\python.exe -m venv .venv
 & .\.venv\Scripts\python.exe -m pip install -e ..\agent-bridge -e .
 ```
 
@@ -71,6 +71,8 @@ print(report.to_json())
 
 MCP-сервер чекера запускается отдельно: `python -m agent_code_checker.mcp_server`.
 Его инструмент `evaluate` не входит в MCP-сервер Agent Bridge.
+После установки обеих библиотек запустите `& .\Configure-Mcp.ps1`, чтобы
+зарегистрировать только MCP-сервер чекера в этом workspace.
 
 ## Тесты
 

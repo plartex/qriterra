@@ -1,5 +1,7 @@
 /.venv/
 /.runtime/
+/.codex/config.toml
+/.agents/mcp_config.json
 /.pytest_cache/
 /.ruff_cache/
 /.coverage
