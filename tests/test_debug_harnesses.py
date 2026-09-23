@@ -7,13 +7,51 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from agent_bridge import BridgeResult
 from agent_code_checker import debug_harnesses as debug
 
 
 class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
+    async def test_temporary_server_uses_discovered_command_and_stops(self):
+        with tempfile.TemporaryDirectory() as folder:
+            args = debug.parse_args(["--agents", "opencode", "--output-dir", folder])
+            harness = debug.harnesses(args)[0]
+            client = SimpleNamespace(capabilities=AsyncMock(side_effect=[OSError("offline"),
+                                                                   {"backend": "opencode"}]))
+            process = MagicMock(pid=123, returncode=None)
+            process.poll.return_value = None
+            with patch.object(debug.subprocess, "Popen", return_value=process) as popen, \
+                 patch.object(debug.asyncio, "sleep", new_callable=AsyncMock):
+                async with debug.ready_harness(harness, args, client, Path(folder),
+                                               {"opencode": "C:/tools/opencode.exe"}):
+                    argv = popen.call_args.args[0]
+                    self.assertIn("--profile", argv)
+                    profile = json.loads(Path(argv[argv.index("--profile") + 1]).read_text())
+                    self.assertEqual(profile["runtime_command"], "C:/tools/opencode.exe")
+                    self.assertEqual(profile["default_model"], "qwen3.5:9b")
+            process.terminate.assert_called_once()
+            process.wait.assert_called_once()
+
+    async def test_explicit_url_is_not_auto_started(self):
+        args = debug.parse_args(["--agents", "codex", "--codex-url", "http://127.0.0.1:9999"])
+        client = SimpleNamespace(capabilities=AsyncMock(side_effect=OSError("offline")))
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(debug.subprocess, "Popen") as popen:
+            with self.assertRaisesRegex(RuntimeError, "unavailable"):
+                async with debug.ready_harness(debug.harnesses(args)[0], args, client,
+                                               Path(folder), {"codex": "agent-bridge"}):
+                    pass
+            popen.assert_not_called()
+
+    def test_peer_identity_is_checked_by_backend_not_profile_id(self):
+        args = debug.parse_args(["--agents", "opencode"])
+        harness = debug.harnesses(args)[0]
+        debug._verify_peer(harness, {"agent": "my-custom-profile", "backend": "opencode"})
+        with self.assertRaisesRegex(ValueError, "backend"):
+            debug._verify_peer(harness, {"backend": "claude_code"})
+
     async def test_code_smells_require_explicit_target(self):
         with self.assertRaisesRegex(ValueError, "--target"):
             await debug.run(debug.parse_args(["--part", "smells"]))
@@ -46,6 +84,9 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
                     self.calls.append(("info", url))
                     return {"capabilities": {"models": ["gpt-6-sol", "ollama/qwen3.5:9b"]},
                             "usage": {"available": False}}
+
+                async def capabilities(self, url):
+                    return {}
 
                 async def ask(self, url, prompt, **kwargs):
                     self.calls.append(("ask", url, kwargs))
@@ -91,6 +132,7 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
             with patch.object(debug, "BridgeClient") as client, \
                  patch.object(debug, "EvaluationService", FakeService), \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                client.return_value.capabilities = AsyncMock(return_value={})
                 client.return_value.info = AsyncMock(return_value={
                     "capabilities": {"models": ["ollama/qwen3.5:9b"]},
                 })
@@ -104,6 +146,7 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
                                      "--output-dir", folder])
             with patch.object(debug, "BridgeClient") as client, \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                client.return_value.capabilities = AsyncMock(return_value={})
                 client.return_value.info = AsyncMock(side_effect=RuntimeError("quota unavailable"))
                 client.return_value.ask = AsyncMock(return_value=BridgeResult(
                     args.codex_url, None, None, "TASK_STATE_COMPLETED", "Стих",

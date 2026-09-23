@@ -49,24 +49,13 @@ $checkerSource = 'C:\path\to\agent-code-checker'
 
 [Команда `agent-code-checker-debug`](agent_code_checker/debug_harnesses.py) входит в установленный пакет. Она запрашивает модели и лимиты через `/bridge/info`, просит каждый харнесс написать стих, затем проверяет указанный файл на code smells теми же моделями. По умолчанию используются `gpt-6-sol`, доступный `gemini-3.8` и локальный Ollama `qwen3.5:9b`; модели можно поменять флагами. Ошибка одного харнесса не прерывает остальные.
 
-Запустите Ollama и четыре сервера Agent Bridge в отдельных терминалах. Примеры профилей из исходного репозитория можно скопировать в любое место; `--workspace .` задаёт каталог вашего проекта:
+Сначала можно бесплатно посмотреть, какие харнессы установлены (модель не вызывается):
 
 ```powershell
-# Терминал 1, если Ollama ещё не запущена:
-ollama serve
-
-# Терминалы 2 и 3, из каталога вашего проекта:
-& .\.venv\Scripts\agent-bridge.exe serve codex --workspace . --port 8765
-& .\.venv\Scripts\agent-bridge.exe serve antigravity --workspace . --port 8766
-
-# Терминал 4:
-& .\.venv\Scripts\agent-bridge.exe serve profile --profile C:\path\to\opencode-ollama.json --workspace . --port 8767
-
-# Терминал 5:
-& .\.venv\Scripts\agent-bridge.exe serve profile --profile C:\path\to\claude-code-ollama.json --workspace . --port 8768
+& .\.venv\Scripts\agent-bridge.exe discover
 ```
 
-Если OpenCode или Claude Code не находятся через `PATH`, укажите полный путь к исполняемому файлу в `runtime_command` своего профиля.
+Отладочная команда по умолчанию выбирает найденные харнессы (`--agents auto`), использует уже запущенный Bridge или временно запускает свой. Временный сервер останавливается после проверки; его лог сохраняется рядом с отчётом. Для OpenCode и Claude Code автоматически создаётся временный профиль Ollama с `qwen3.5:9b`; сама Ollama должна быть запущена и модель загружена. Если харнесс не найден, укажите `--opencode-command`, `--claude-command` или `--agy-command` с путём к исполняемому файлу. Можно также указать уже работающий сервер через `--opencode-url`, `--claude-url`, `--codex-url` или `--antigravity-url`. Явно заданный URL никогда не запускается автоматически.
 
 Из каталога проекта выполните сначала быструю проверку доступности моделей, затем проверку выбранного файла:
 
@@ -75,7 +64,7 @@ ollama serve
 & .\.venv\Scripts\agent-code-checker-debug.exe --part smells --target .\src\service.py --rules long_method,large_class
 ```
 
-Полный прогон применит все 80 правил к каждому из четырёх харнессов и может занять значительное время и квоту. Для короткой диагностики используйте `--rules long_method,large_class`; `--part agents` выполняет только запрос информации и стих, `--part smells` — только проверку. `--agents codex,opencode` ограничивает список. `--no-session` переключает проверку на независимые запросы по пакетам. Флаг `--help` показывает URL и остальные настройки.
+Полный прогон применит все 80 правил к каждому найденному харнессу и может занять значительное время и квоту. Для короткой диагностики используйте `--rules long_method,large_class`; `--part agents` выполняет только запрос информации и стих, `--part smells` — только проверку. `--agents codex,opencode` ограничивает список. `--no-auto-start` разрешает только уже запущенные серверы. Для других провайдеров используйте `--opencode-profile` или `--claude-profile` вместе с соответствующим `--opencode-model`/`--claude-model`. `--no-session` переключает проверку на независимые запросы по пакетам.
 
 Каждый прогон сохраняет `summary.json` и отдельные `*.code-smells.json` в новом каталоге `debug-runs/`. Трасса `debug_trace` также печатается в stderr. Для локальной Ollama Agent Bridge показывает разрешённые профилем модели, но квоты аккаунта отсутствуют; это отражено в поле `usage.available=false`.
 
