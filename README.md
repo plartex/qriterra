@@ -45,6 +45,39 @@ $env:BRIDGE_ANTIGRAVITY_URL = 'http://127.0.0.1:8766'
 Сниппет передаётся как `evaluate snippet --code '...' --language python`.
 Отдельные правила выбираются флагом `--rules long_method,duplicate_code`.
 
+## Отладочный прогон четырёх харнессов
+
+[Скрипт](examples/debug_harnesses.py) выполняет две части: запрашивает модели и лимиты через `/bridge/info` и просит каждый харнесс написать стих; затем проверяет один файл на code smells теми же моделями. Codex использует `gpt-6-sol`, Antigravity — доступный `gemini-3.8` (по умолчанию `gemini-3.8-flash-medium`), OpenCode и Claude Code — локальный Ollama `qwen3.5:9b`. Скрипт печатает ошибки каждого харнесса отдельно и продолжает прогон остальных.
+
+Сначала запустите Ollama и четыре сервера Agent Bridge. Команды выполняются в отдельных PowerShell-терминалах. Если Ollama уже работает, повторно запускать её не нужно:
+
+```powershell
+# Терминал 1:
+& "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" serve
+
+# Терминал 2, из каталога agent-bridge:
+& .\Start-Bridge.ps1
+
+# Терминал 3, из каталога agent-bridge:
+$env:PATH = "$env:APPDATA\npm;$env:PATH"
+& .\.venv\Scripts\agent-bridge.exe serve profile --profile .\examples\opencode-ollama.json --port 8767
+
+# Терминал 4, из каталога agent-bridge:
+& .\.venv\Scripts\agent-bridge.exe serve profile --profile .\examples\claude-code-ollama.json --port 8768
+```
+
+Если OpenCode или Claude Code не находятся через `PATH`, укажите полный путь к исполняемому файлу в поле `runtime_command` соответствующего JSON-профиля. На текущей Windows-машине OpenCode установлен как `C:/path/to/project`.
+
+Из каталога `agent-code-checker` запустите полный прогон. По умолчанию файл — прежний `C:/path/to/project`; укажите `--target` для другого файла:
+
+```powershell
+& .\.venv\Scripts\python.exe .\examples\debug_harnesses.py --target 'C:/path/to/project'
+```
+
+Полный прогон применит все 80 правил к каждому из четырёх харнессов и может занять значительное время и квоту. Для короткой диагностики используйте `--rules long_method,large_class`; `--part agents` выполняет только запрос информации и стих, `--part smells` — только проверку. `--agents codex,opencode` ограничивает список. `--no-session` переключает проверку на независимые запросы по пакетам. Флаг `--help` показывает URL и остальные настройки.
+
+Каждый прогон сохраняет `summary.json` и отдельные `*.code-smells.json` в новом каталоге `debug-runs/`. Трасса `debug_trace` также печатается в stderr. Для локальной Ollama Agent Bridge показывает разрешённые профилем модели, но квоты аккаунта отсутствуют; это отражено в поле `usage.available=false`.
+
 Для встроенного каталога агенту по умолчанию передаются краткие английские
 критерии из `agent_code_checker/profiles/data/code_smells.en.json`. Исходный
 русский `code_smells.min.json` сохранён без изменений и используется для
