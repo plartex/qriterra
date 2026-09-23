@@ -6,6 +6,7 @@
 /.ruff_cache/
 /.coverage
 /debug-runs/
+/build/
 **/__pycache__/
 *.egg-info/
 *.py[cod]

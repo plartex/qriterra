@@ -1,7 +1,7 @@
 # Agent Code Checker
 
-Отдельная библиотека для LLM-проверок качества кода. [Agent Bridge](https://gitlab.com/kkaastr/codex-antigravity-a2a-bridge)
-— только транспортная зависимость: он запускает Codex или Antigravity через A2A,
+Отдельная библиотека для LLM-проверок качества кода. Agent Bridge
+— транспортная зависимость: он запускает агентные харнессы через A2A,
 но не хранит правила запахов, не формирует оценки и не знает о чекере.
 
 Сейчас профиль `code_smells` содержит 80 правил. Чекер принимает сниппет или
@@ -9,71 +9,70 @@
 агента, собирает доказательства и рассчитывает оценку. Он только выявляет
 проблемы и не изменяет код.
 
-## Установка рядом с Agent Bridge
+## Установка в любом проекте
 
-Сначала запустите серверы из соседнего репозитория `agent-bridge`:
-
-```powershell
-Set-Location ..\agent-bridge
-& .\Start-Bridge.ps1
-Set-Location ..\agent-code-checker
-```
-
-Поставьте обе библиотеки в одно окружение (первая команда нужна один раз):
+Создайте окружение в своём проекте и установите обе библиотеки в него. Их исходные репозитории могут находиться где угодно; при запуске после установки они не нужны:
 
 ```powershell
-& ..\agent-bridge\.venv\Scripts\python.exe -m venv .venv
-& .\.venv\Scripts\python.exe -m pip install -e ..\agent-bridge -e .
+python -m venv .venv
+$bridgeSource = 'C:\path\to\agent-bridge'
+$checkerSource = 'C:\path\to\agent-code-checker'
+& .\.venv\Scripts\python.exe -m pip install $bridgeSource $checkerSource
 ```
 
-`pyproject.toml` чекера объявляет `codex-antigravity-a2a-bridge` обычной
-Python-зависимостью. Локальная editable-установка выше нужна до публикации
-отдельных пакетов в индекс.
+В PyCharm выберите тот же `ваш-проект\.venv\Scripts\python.exe` как Project Interpreter. Если будете устанавливать опубликованные пакеты из индекса, достаточно `pip install agent-code-checker`: пакет объявляет Agent Bridge обычной зависимостью.
+
+Серверы запускаются из окружения проекта и получают его каталог через `--workspace`:
+
+```powershell
+& .\.venv\Scripts\agent-bridge.exe serve codex --workspace . --port 8765
+# В другом терминале:
+& .\.venv\Scripts\agent-bridge.exe serve antigravity --workspace . --port 8766
+```
+
+Для OpenCode и Claude Code создайте JSON-профили по примерам в Agent Bridge и запустите `serve profile --profile <путь> --workspace . --port <порт>`. Рабочая папка берётся из `--workspace`; профиль не обязан находиться в проекте.
 
 ## CLI
 
 ```powershell
-$env:BRIDGE_ANTIGRAVITY_URL = 'http://127.0.0.1:8766'
-& .\.venv\Scripts\python.exe -m agent_code_checker.cli evaluate file `
-  'C:/path/to/project' `
-  --provider agent-bridge:antigravity --model gemini-3.8-flash-medium `
-  --reasoning-effort medium --batch-size 10 --debug --json --output rls.report.json
+& .\.venv\Scripts\agent-code-checker.exe evaluate file .\src\service.py `
+  --provider agent-bridge:opencode-local --agent-url http://127.0.0.1:8767 `
+  --tool-policy no_tools --model qwen3.5:9b --rules long_method,large_class `
+  --debug --json --output service.report.json
 ```
 
-Для Codex задайте `BRIDGE_CODEX_URL=http://127.0.0.1:8765` и используйте
-`--provider agent-bridge:codex --model gpt-5.6-terra --reasoning-effort high`.
+Для Codex используйте `--provider agent-bridge:codex --agent-url http://127.0.0.1:8765 --model gpt-6-sol`. Для Antigravity передайте его URL и доступный model ID. Старые переменные `BRIDGE_CODEX_URL` и `BRIDGE_ANTIGRAVITY_URL` также поддерживаются. MCP-инструмент `evaluate` принимает те же `provider`, `agent_url` и `tool_policy`.
 Сниппет передаётся как `evaluate snippet --code '...' --language python`.
 Отдельные правила выбираются флагом `--rules long_method,duplicate_code`.
 
 ## Отладочный прогон четырёх харнессов
 
-[Скрипт](examples/debug_harnesses.py) выполняет две части: запрашивает модели и лимиты через `/bridge/info` и просит каждый харнесс написать стих; затем проверяет один файл на code smells теми же моделями. Codex использует `gpt-6-sol`, Antigravity — доступный `gemini-3.8` (по умолчанию `gemini-3.8-flash-medium`), OpenCode и Claude Code — локальный Ollama `qwen3.5:9b`. Скрипт печатает ошибки каждого харнесса отдельно и продолжает прогон остальных.
+[Команда `agent-code-checker-debug`](agent_code_checker/debug_harnesses.py) входит в установленный пакет. Она запрашивает модели и лимиты через `/bridge/info`, просит каждый харнесс написать стих, затем проверяет указанный файл на code smells теми же моделями. По умолчанию используются `gpt-6-sol`, доступный `gemini-3.8` и локальный Ollama `qwen3.5:9b`; модели можно поменять флагами. Ошибка одного харнесса не прерывает остальные.
 
-Сначала запустите Ollama и четыре сервера Agent Bridge. Команды выполняются в отдельных PowerShell-терминалах. Если Ollama уже работает, повторно запускать её не нужно:
+Запустите Ollama и четыре сервера Agent Bridge в отдельных терминалах. Примеры профилей из исходного репозитория можно скопировать в любое место; `--workspace .` задаёт каталог вашего проекта:
 
 ```powershell
-# Терминал 1:
-& "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" serve
+# Терминал 1, если Ollama ещё не запущена:
+ollama serve
 
-# Терминал 2, из каталога agent-bridge:
-& .\Start-Bridge.ps1
+# Терминалы 2 и 3, из каталога вашего проекта:
+& .\.venv\Scripts\agent-bridge.exe serve codex --workspace . --port 8765
+& .\.venv\Scripts\agent-bridge.exe serve antigravity --workspace . --port 8766
 
-# Терминал 3, из каталога agent-bridge:
-$env:PATH = "$env:APPDATA\npm;$env:PATH"
-& .\.venv\Scripts\agent-bridge.exe serve profile --profile .\examples\opencode-ollama.json --port 8767
+# Терминал 4:
+& .\.venv\Scripts\agent-bridge.exe serve profile --profile C:\path\to\opencode-ollama.json --workspace . --port 8767
 
-# Терминал 4, из каталога agent-bridge:
-& .\.venv\Scripts\agent-bridge.exe serve profile --profile .\examples\claude-code-ollama.json --port 8768
+# Терминал 5:
+& .\.venv\Scripts\agent-bridge.exe serve profile --profile C:\path\to\claude-code-ollama.json --workspace . --port 8768
 ```
 
-Если OpenCode или Claude Code не находятся через `PATH`, укажите полный путь к исполняемому файлу в поле `runtime_command` соответствующего JSON-профиля. На текущей Windows-машине OpenCode установлен как `C:/path/to/project`.
+Если OpenCode или Claude Code не находятся через `PATH`, укажите полный путь к исполняемому файлу в `runtime_command` своего профиля.
 
-Из каталога `agent-code-checker` запустите полный прогон. По умолчанию файл — прежний `C:/path/to/project`; укажите `--target` для другого файла:
-
-В PyCharm для запуска файла кнопкой Run выберите интерпретатор `agent-code-checker\.venv\Scripts\python.exe` через **Settings → Project → Python Interpreter → Add Interpreter → Existing**. Системный `Python312\python.exe` из скриншота не содержит установленных библиотек Agent Bridge и чекера.
+Из каталога проекта выполните сначала быструю проверку доступности моделей, затем проверку выбранного файла:
 
 ```powershell
-& .\.venv\Scripts\python.exe .\examples\debug_harnesses.py --target 'C:/path/to/project'
+& .\.venv\Scripts\agent-code-checker-debug.exe --part agents
+& .\.venv\Scripts\agent-code-checker-debug.exe --part smells --target .\src\service.py --rules long_method,large_class
 ```
 
 Полный прогон применит все 80 правил к каждому из четырёх харнессов и может занять значительное время и квоту. Для короткой диагностики используйте `--rules long_method,large_class`; `--part agents` выполняет только запрос информации и стих, `--part smells` — только проверку. `--agents codex,opencode` ограничивает список. `--no-session` переключает проверку на независимые запросы по пакетам. Флаг `--help` показывает URL и остальные настройки.
@@ -121,19 +120,19 @@ Agent Bridge на проверку и закрывает её в конце. К�
 from agent_code_checker import EvaluationService, EvaluationTarget, load_code_smells_profile
 from agent_code_checker.providers import AgentBridgeProvider
 
-provider = AgentBridgeProvider('http://127.0.0.1:8766', 'antigravity')
+provider = AgentBridgeProvider('http://127.0.0.1:8767', 'opencode-local', tool_policy='no_tools')
 report = await EvaluationService(provider).evaluate(
-    EvaluationTarget.file('D:/projects/example/service.py'),
+    EvaluationTarget.file('src/service.py'),
     load_code_smells_profile(),
     debug=True,
 )
 print(report.to_json())
 ```
 
-MCP-сервер чекера запускается отдельно: `python -m agent_code_checker.mcp_server`.
-Его инструмент `evaluate` не входит в MCP-сервер Agent Bridge.
-После установки обеих библиотек запустите `& .\Configure-Mcp.ps1`, чтобы
-зарегистрировать только MCP-сервер чекера в этом workspace.
+MCP-сервер чекера запускается из установленного окружения командой
+`agent-code-checker-mcp`. Его инструмент `evaluate` не входит в MCP-сервер
+Agent Bridge. Укажите путь к этой команде в конфигурации MCP своего проекта;
+`Configure-Mcp.ps1` в исходном репозитории — лишь удобный скрипт настройки.
 
 ## Тесты
 

@@ -10,10 +10,14 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from agent_bridge import BridgeResult
-from examples import debug_harnesses as debug
+from agent_code_checker import debug_harnesses as debug
 
 
 class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
+    async def test_code_smells_require_explicit_target(self):
+        with self.assertRaisesRegex(ValueError, "--target"):
+            await debug.run(debug.parse_args(["--part", "smells"]))
+
     def test_models_and_gemini_catalog_selection(self):
         args = debug.parse_args([])
         configured = {item.name: item for item in debug.harnesses(args)}
