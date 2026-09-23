@@ -25,6 +25,8 @@ async def evaluate(
     profile: str = "code_smells",
     rules: list[str] | None = None,
     provider: str = "agent-bridge:codex",
+    agent_url: str | None = None,
+    tool_policy: str | None = None,
     model: str | None = None,
     reasoning_effort: str | None = None,
     batch_size: int = 10,
@@ -47,7 +49,9 @@ async def evaluate(
     evaluation_profile = load_code_smells_profile(
         rule_ids=rules, prompt_language=prompt_language,
     )
-    agent_provider = agent_bridge_provider_from_name(provider)
+    agent_provider = agent_bridge_provider_from_name(
+        provider, peer_url=agent_url, tool_policy=tool_policy,
+    )
     report = await EvaluationService(agent_provider).evaluate(
         evaluation_target,
         evaluation_profile,

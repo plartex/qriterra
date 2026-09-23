@@ -28,6 +28,8 @@ def main() -> None:
         help="Use an independent agent request for every batch (comparison/fallback)",
     )
     evaluate.add_argument("--provider", default="agent-bridge:codex")
+    evaluate.add_argument("--agent-url", help="A2A URL for any Agent Bridge profile")
+    evaluate.add_argument("--tool-policy", choices=["no_tools", "read_only", "workspace_write"])
     evaluate.add_argument("--model")
     evaluate.add_argument("--reasoning-effort")
     evaluate.add_argument("--catalog", type=Path, help="Override the bundled code-smells catalog")
@@ -64,7 +66,9 @@ def main() -> None:
     profile = load_code_smells_profile(
         args.catalog, rule_ids=rule_ids, prompt_language=args.prompt_language,
     )
-    provider = agent_bridge_provider_from_name(args.provider)
+    provider = agent_bridge_provider_from_name(
+        args.provider, peer_url=args.agent_url, tool_policy=args.tool_policy,
+    )
     try:
         report = asyncio.run(
             EvaluationService(provider).evaluate(

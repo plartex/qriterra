@@ -136,7 +136,9 @@ def _provider_response(result: BridgeResult) -> ProviderResponse:
     return ProviderResponse(result.text, result.usage)
 
 
-def agent_bridge_provider_from_name(name: str) -> AgentBridgeProvider:
+def agent_bridge_provider_from_name(
+    name: str, *, peer_url: str | None = None, tool_policy: str | None = None,
+) -> AgentBridgeProvider:
     normalized = name.strip().lower()
     aliases = {
         "codex": ("codex", "BRIDGE_CODEX_URL"),
@@ -144,10 +146,16 @@ def agent_bridge_provider_from_name(name: str) -> AgentBridgeProvider:
         "antigravity": ("antigravity", "BRIDGE_ANTIGRAVITY_URL"),
         "agent-bridge:antigravity": ("antigravity", "BRIDGE_ANTIGRAVITY_URL"),
     }
-    if normalized not in aliases:
+    if normalized in aliases:
+        agent, env_name = aliases[normalized]
+        url = peer_url or os.environ.get(env_name)
+        if not url:
+            raise RuntimeError(f"Set {env_name} to the local A2A server URL")
+    elif normalized.startswith("agent-bridge:") and name.strip().split(":", 1)[1].strip():
+        agent = name.strip().split(":", 1)[1].strip()
+        url = peer_url
+        if not url:
+            raise ValueError("Custom Agent Bridge profiles require agent_url")
+    else:
         raise ValueError(f"Unknown provider: {name}")
-    agent, env_name = aliases[normalized]
-    url = os.environ.get(env_name)
-    if not url:
-        raise RuntimeError(f"Set {env_name} to the local A2A server URL")
-    return AgentBridgeProvider(url, agent)
+    return AgentBridgeProvider(url, agent, tool_policy=tool_policy)

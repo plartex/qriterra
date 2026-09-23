@@ -23,7 +23,8 @@ class CheckerMcpTest(unittest.IsolatedAsyncioTestCase):
                 tools = (await session.list_tools()).tools
         self.assertEqual({tool.name for tool in tools}, {"evaluate"})
         props = tools[0].inputSchema["properties"]
-        self.assertTrue({"target_type", "target", "batch_size", "model", "reasoning_effort", "debug"} <= props.keys())
+        self.assertTrue({"target_type", "target", "batch_size", "model", "reasoning_effort",
+                         "agent_url", "tool_policy", "debug"} <= props.keys())
 
 
 if __name__ == "__main__":
