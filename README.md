@@ -70,6 +70,8 @@ $env:PATH = "$env:APPDATA\npm;$env:PATH"
 
 Из каталога `agent-code-checker` запустите полный прогон. По умолчанию файл — прежний `C:/path/to/project`; укажите `--target` для другого файла:
 
+В PyCharm для запуска файла кнопкой Run выберите интерпретатор `agent-code-checker\.venv\Scripts\python.exe` через **Settings → Project → Python Interpreter → Add Interpreter → Existing**. Системный `Python312\python.exe` из скриншота не содержит установленных библиотек Agent Bridge и чекера.
+
 ```powershell
 & .\.venv\Scripts\python.exe .\examples\debug_harnesses.py --target 'C:/path/to/project'
 ```

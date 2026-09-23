@@ -15,9 +15,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from agent_bridge import BridgeClient
-from agent_code_checker import EvaluationService, EvaluationTarget, load_code_smells_profile
-from agent_code_checker.providers import AgentBridgeProvider
+try:
+    from agent_bridge import BridgeClient
+    from agent_code_checker import EvaluationService, EvaluationTarget, load_code_smells_profile
+    from agent_code_checker.providers import AgentBridgeProvider
+except ModuleNotFoundError as exc:
+    project_python = Path(__file__).resolve().parents[1] / ".venv" / "Scripts" / "python.exe"
+    raise SystemExit(
+        f"Модуль {exc.name!r} отсутствует в интерпретаторе {sys.executable}.\n"
+        f"В PyCharm выберите интерпретатор проекта: {project_python}\n"
+        "Если окружение ещё не создано, выполните установку из README.md."
+    ) from None
 
 
 DEFAULT_TARGET = Path(r"C:/path/to/project")
