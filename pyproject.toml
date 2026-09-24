@@ -4,20 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-code-checker"
-version = "0.2.3"
+version = "0.3.0"
 description = "LLM-first code-quality checks over Agent Bridge"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Aleksandr Kovalenko" }]
 dependencies = [
-  "codex-antigravity-a2a-bridge>=0.3.4,<1",
+  "codex-antigravity-a2a-bridge>=0.3.5,<1",
   "mcp>=1.30,<2",
 ]
 
 [project.scripts]
 agent-code-checker = "agent_code_checker.cli:main"
 agent-code-checker-mcp = "agent_code_checker.mcp_server:main"
-agent-code-checker-debug = "agent_code_checker.debug_harnesses:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

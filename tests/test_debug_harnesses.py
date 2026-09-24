@@ -1,19 +1,74 @@
-"""The debug script uses the requested models and isolates per-harness results."""
+"""The standalone example composes public library calls in the right order."""
 
-import json
 import io
+import json
 import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import asynccontextmanager, redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-from agent_bridge import BridgeResult
-from agent_code_checker import debug_harnesses as debug
+from agent_bridge import BridgeConnection, BridgeResult
+from examples import debug_harnesses as debug
+
+
+@asynccontextmanager
+async def connected(launch, *, client=None):
+    yield BridgeConnection(launch.url, started=False)
 
 
 class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
+    async def test_all_runs_info_poem_then_checker_in_script(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "target.py"
+            target.write_text("def f():\n    return 1\n", encoding="utf-8")
+            args = debug.parse_args(["--part", "all", "--agents", "codex",
+                                     "--target", str(target), "--rules", "long_method",
+                                     "--output-dir", folder])
+            events = []
+
+            class FakeClient:
+                async def info(self, url):
+                    events.append("info")
+                    return {"capabilities": {"models": ["gpt-6-sol"]}}
+
+                async def ask(self, url, prompt, **kwargs):
+                    events.append("poem")
+                    return BridgeResult(url, None, None, "TASK_STATE_COMPLETED", "Стих")
+
+            class FakeService:
+                def __init__(self, provider):
+                    pass
+
+                async def evaluate(self, target, profile, **kwargs):
+                    events.append("evaluate")
+                    return SimpleNamespace(
+                        summary=SimpleNamespace(to_dict=lambda: {"passed": 1, "errors": 0}),
+                        to_json=lambda: '{"summary":{"passed":1}}',
+                    )
+
+            with patch.object(debug, "BridgeClient", return_value=FakeClient()), \
+                 patch.object(debug, "connect_harness", connected), \
+                 patch.object(debug, "EvaluationService", FakeService), \
+                 redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                self.assertEqual(await debug.run(args), 0)
+            self.assertEqual(events, ["info", "poem", "evaluate"])
+
+    def test_models_and_gemini_catalog_selection(self):
+        configured = {item.name: item for item in debug.harnesses(debug.parse_args([]))}
+        self.assertEqual(configured["codex"].model, "gpt-6-sol")
+        self.assertEqual(configured["opencode"].model, "qwen3.5:9b")
+        self.assertEqual(configured["claude_code"].model, "qwen3.5:9b")
+        self.assertEqual(configured["opencode"].tool_policy, "no_tools")
+        self.assertEqual(debug.selected_model(
+            configured["antigravity"], {"capabilities": {"models": [
+                {"id": "gemini-3.8-pro-high"}, {"id": "gemini-3.7"},
+            ]}},
+        ), "gemini-3.8-pro-high")
+        with self.assertRaisesRegex(ValueError, "absent"):
+            debug.selected_model(configured["codex"], {"capabilities": {"models": ["other"]}})
+
     async def test_auto_selection_includes_discovered_antigravity(self):
         with tempfile.TemporaryDirectory() as folder:
             args = debug.parse_args(["--part", "agents", "--output-dir", folder])
@@ -34,70 +89,14 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
             with patch.object(debug, "discover_harnesses", return_value={
                 "antigravity": "C:/tools/agy.exe"}), \
                  patch.object(debug, "BridgeClient", return_value=FakeClient()), \
+                 patch.object(debug, "connect_harness", connected), \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 status = await debug.run(args)
             self.assertEqual(status, 0)
             payload = json.loads(next(Path(folder).rglob("summary.json")).read_text(encoding="utf-8"))
             self.assertEqual(set(payload["harnesses"]), {"antigravity"})
 
-    async def test_temporary_server_uses_discovered_command_and_stops(self):
-        with tempfile.TemporaryDirectory() as folder:
-            args = debug.parse_args(["--agents", "opencode", "--output-dir", folder])
-            harness = debug.harnesses(args)[0]
-            client = SimpleNamespace(capabilities=AsyncMock(side_effect=[OSError("offline"),
-                                                                   {"backend": "opencode"}]))
-            process = MagicMock(pid=123, returncode=None)
-            process.poll.return_value = None
-            with patch.object(debug.subprocess, "Popen", return_value=process) as popen, \
-                 patch.object(debug.asyncio, "sleep", new_callable=AsyncMock):
-                async with debug.ready_harness(harness, args, client, Path(folder),
-                                               {"opencode": "C:/tools/opencode.exe"}):
-                    argv = popen.call_args.args[0]
-                    self.assertIn("--profile", argv)
-                    profile = json.loads(Path(argv[argv.index("--profile") + 1]).read_text())
-                    self.assertEqual(profile["runtime_command"], "C:/tools/opencode.exe")
-                    self.assertEqual(profile["default_model"], "qwen3.5:9b")
-            process.terminate.assert_called_once()
-            process.wait.assert_called_once()
-
-    async def test_explicit_url_is_not_auto_started(self):
-        args = debug.parse_args(["--agents", "codex", "--codex-url", "http://127.0.0.1:9999"])
-        client = SimpleNamespace(capabilities=AsyncMock(side_effect=OSError("offline")))
-        with tempfile.TemporaryDirectory() as folder, \
-             patch.object(debug.subprocess, "Popen") as popen:
-            with self.assertRaisesRegex(RuntimeError, "unavailable"):
-                async with debug.ready_harness(debug.harnesses(args)[0], args, client,
-                                               Path(folder), {"codex": "agent-bridge"}):
-                    pass
-            popen.assert_not_called()
-
-    def test_peer_identity_is_checked_by_backend_not_profile_id(self):
-        args = debug.parse_args(["--agents", "opencode"])
-        harness = debug.harnesses(args)[0]
-        debug._verify_peer(harness, {"agent": "my-custom-profile", "backend": "opencode"})
-        with self.assertRaisesRegex(ValueError, "backend"):
-            debug._verify_peer(harness, {"backend": "claude_code"})
-
-    async def test_code_smells_require_explicit_target(self):
-        with self.assertRaisesRegex(ValueError, "--target"):
-            await debug.run(debug.parse_args(["--part", "smells"]))
-
-    def test_models_and_gemini_catalog_selection(self):
-        args = debug.parse_args([])
-        configured = {item.name: item for item in debug.harnesses(args)}
-        self.assertEqual(configured["codex"].model, "gpt-6-sol")
-        self.assertEqual(configured["opencode"].model, "qwen3.5:9b")
-        self.assertEqual(configured["claude_code"].model, "qwen3.5:9b")
-        self.assertEqual(configured["opencode"].tool_policy, "no_tools")
-        self.assertEqual(debug.selected_model(
-            configured["antigravity"], {"capabilities": {"models": [
-                {"id": "gemini-3.8-pro-high"}, {"id": "gemini-3.7"},
-            ]}},
-        ), "gemini-3.8-pro-high")
-        with self.assertRaisesRegex(ValueError, "absent"):
-            debug.selected_model(configured["codex"], {"capabilities": {"models": ["other"]}})
-
-    async def test_agents_part_queries_info_and_poem_for_each_selected_harness(self):
+    async def test_agents_part_calls_info_then_poem_for_each_harness(self):
         with tempfile.TemporaryDirectory() as folder:
             args = debug.parse_args(["--part", "agents", "--agents", "codex,opencode",
                                      "--output-dir", folder])
@@ -108,30 +107,22 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
 
                 async def info(self, url):
                     self.calls.append(("info", url))
-                    return {"capabilities": {"models": ["gpt-6-sol", "ollama/qwen3.5:9b"]},
-                            "usage": {"available": False}}
-
-                async def capabilities(self, url):
-                    return {}
+                    return {"capabilities": {"models": ["gpt-6-sol", "ollama/qwen3.5:9b"]}}
 
                 async def ask(self, url, prompt, **kwargs):
                     self.calls.append(("ask", url, kwargs))
-                    return BridgeResult(url, None, None, "TASK_STATE_COMPLETED", "Стих", {"input_tokens": 3})
+                    return BridgeResult(url, None, None, "TASK_STATE_COMPLETED", "Стих")
 
             fake = FakeClient()
             with patch.object(debug, "BridgeClient", return_value=fake), \
+                 patch.object(debug, "connect_harness", connected), \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 status = await debug.run(args)
-
             self.assertEqual(status, 0)
             self.assertEqual([call[0] for call in fake.calls], ["info", "ask", "info", "ask"])
             self.assertEqual(fake.calls[-1][2]["tool_policy"], "no_tools")
-            summary = next(Path(folder).rglob("summary.json"))
-            payload = json.loads(summary.read_text(encoding="utf-8"))
-            self.assertEqual(set(payload["harnesses"]), {"codex", "opencode"})
-            self.assertEqual(payload["harnesses"]["codex"]["model"], "gpt-6-sol")
 
-    async def test_smells_part_writes_separate_report_and_flags_errors(self):
+    async def test_smells_part_uses_checker_service_and_saves_report(self):
         with tempfile.TemporaryDirectory() as folder:
             target = Path(folder) / "target.py"
             target.write_text("def example():\n    return 1\n", encoding="utf-8")
@@ -149,16 +140,16 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
 
                 async def evaluate(self, target, profile, **kwargs):
                     self_target = target
-                    assert self_target.path == Path(args.target)
+                    assert self_target.path == args.target
                     assert len(profile.rules) == 1
                     assert self.provider.tool_policy == "no_tools"
                     assert kwargs["model"] == "qwen3.5:9b"
                     return report
 
             with patch.object(debug, "BridgeClient") as client, \
+                 patch.object(debug, "connect_harness", connected), \
                  patch.object(debug, "EvaluationService", FakeService), \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-                client.return_value.capabilities = AsyncMock(return_value={})
                 client.return_value.info = AsyncMock(return_value={
                     "capabilities": {"models": ["ollama/qwen3.5:9b"]},
                 })
@@ -171,8 +162,8 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
             args = debug.parse_args(["--part", "agents", "--agents", "codex",
                                      "--output-dir", folder])
             with patch.object(debug, "BridgeClient") as client, \
+                 patch.object(debug, "connect_harness", connected), \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-                client.return_value.capabilities = AsyncMock(return_value={})
                 client.return_value.info = AsyncMock(side_effect=RuntimeError("quota unavailable"))
                 client.return_value.ask = AsyncMock(return_value=BridgeResult(
                     args.codex_url, None, None, "TASK_STATE_COMPLETED", "Стих",
@@ -181,3 +172,24 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(status, 1)
             summary = json.loads(next(Path(folder).rglob("summary.json")).read_text(encoding="utf-8"))
             self.assertIn("quota unavailable", summary["harnesses"]["codex"]["info_error"])
+
+    async def test_explicit_url_disables_auto_start(self):
+        with tempfile.TemporaryDirectory() as folder:
+            args = debug.parse_args(["--part", "agents", "--agents", "codex",
+                                     "--codex-url", "http://127.0.0.1:9999",
+                                     "--output-dir", folder])
+            launches = []
+
+            @asynccontextmanager
+            async def capture(launch, *, client=None):
+                launches.append(launch)
+                yield BridgeConnection(launch.url, started=False)
+
+            with patch.object(debug, "BridgeClient") as client, \
+                 patch.object(debug, "connect_harness", capture), \
+                 redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                client.return_value.info = AsyncMock(return_value={})
+                client.return_value.ask = AsyncMock(return_value=BridgeResult(
+                    args.codex_url, None, None, "TASK_STATE_COMPLETED", "Стих"))
+                self.assertEqual(await debug.run(args), 0)
+            self.assertFalse(launches[0].start_if_missing)

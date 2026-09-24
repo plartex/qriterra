@@ -45,30 +45,22 @@ $checkerSource = 'C:\path\to\agent-code-checker'
 Сниппет передаётся как `evaluate snippet --code '...' --language python`.
 Отдельные правила выбираются флагом `--rules long_method,duplicate_code`.
 
-## Отладочный прогон четырёх харнессов
+## Отладочный скрипт — композиция двух библиотек
 
-[Готовый скрипт для PyCharm](examples/debug_harnesses.py) запускается кнопкой Run без параметров: сначала получает сведения о моделях и просит стих, затем проверяет `C:/path/to/project` по двум правилам. Выберите интерпретатор `agent-code-checker/.venv/Scripts/python.exe`; целевой файл, харнессы и правила меняются константами `TARGET`, `AGENTS`, `RULES` в начале скрипта. Для всех 80 правил установите `RULES = None` — это может потребовать значительной квоты. Отчёты сохраняются в `examples/debug-runs/`.
+[Скрипт для PyCharm](examples/debug_harnesses.py) запускается кнопкой Run без параметров. Все прикладные вызовы теперь находятся в нём: `discover_harnesses()` находит харнессы, `connect_harness()` временно поднимает Bridge при необходимости, `BridgeClient.info()` читает модели и лимиты, `BridgeClient.ask()` просит стих, а `EvaluationService.evaluate()` проверяет code smells через `AgentBridgeProvider`. В библиотеках нет кода, который выбирает стих, файл `rls.py` или порядок этих шагов.
 
-[Команда `agent-code-checker-debug`](agent_code_checker/debug_harnesses.py) входит в установленный пакет. Она запрашивает модели и лимиты через `/bridge/info`, просит каждый харнесс написать стих, затем проверяет указанный файл на code smells теми же моделями. По умолчанию используются `gpt-6-sol`, доступный `gemini-3.8` и локальный Ollama `qwen3.5:9b`; модели можно поменять флагами. Ошибка одного харнесса не прерывает остальные.
+Выберите интерпретатор `agent-code-checker/.venv/Scripts/python.exe`. В начале скрипта доступны `TARGET`, `AGENTS`, `RULES`, `MODELS`, `COMMANDS`, `URLS`, `PROFILES`. Текущее `RULES = None` — сохранённый выбор для всех 80 правил; такой прогон может потратить значительную квоту. Для короткой проверки поставьте `RULES = "long_method,large_class"`. Отчёты и логи находятся в `examples/debug-runs/`.
 
-Сначала можно бесплатно посмотреть, какие харнессы установлены (модель не вызывается):
-
-```powershell
-& .\.venv\Scripts\agent-bridge.exe discover
-```
-
-Отладочная команда по умолчанию выбирает найденные харнессы (`--agents auto`), использует уже запущенный Bridge или временно запускает свой. Временный сервер останавливается после проверки; его лог сохраняется рядом с отчётом. Для OpenCode и Claude Code автоматически создаётся временный профиль Ollama с `qwen3.5:9b`; сама Ollama должна быть запущена и модель загружена. Если харнесс не найден, укажите `--opencode-command`, `--claude-command` или `--agy-command` с путём к исполняемому файлу. Можно также указать уже работающий сервер через `--opencode-url`, `--claude-url`, `--codex-url` или `--antigravity-url`. Явно заданный URL никогда не запускается автоматически.
-
-Из каталога проекта выполните сначала быструю проверку доступности моделей, затем проверку выбранного файла:
+Из PowerShell можно запустить тот же скрипт с переопределениями:
 
 ```powershell
-& .\.venv\Scripts\agent-code-checker-debug.exe --part agents
-& .\.venv\Scripts\agent-code-checker-debug.exe --part smells --target .\src\service.py --rules long_method,large_class
+& .\.venv\Scripts\python.exe .\examples\debug_harnesses.py --part agents
+& .\.venv\Scripts\python.exe .\examples\debug_harnesses.py --part smells --target .\src\service.py --rules long_method,large_class
 ```
 
-Полный прогон применит все 80 правил к каждому найденному харнессу и может занять значительное время и квоту. Для короткой диагностики используйте `--rules long_method,large_class`; `--part agents` выполняет только запрос информации и стих, `--part smells` — только проверку. `--agents codex,opencode` ограничивает список. `--no-auto-start` разрешает только уже запущенные серверы. Для других провайдеров используйте `--opencode-profile` или `--claude-profile` вместе с соответствующим `--opencode-model`/`--claude-model`. `--no-session` переключает проверку на независимые запросы по пакетам.
+`--agents auto` выбирает найденные харнессы; `--agents codex,opencode` ограничивает список. Для локальных OpenCode и Claude Code создаётся временный профиль Ollama с `qwen3.5:9b`; Ollama и модель должны быть доступны. Команду можно указать через `COMMANDS` или `--agy-command`/`--opencode-command`/`--claude-command`; уже работающий сервер — через `URLS` или соответствующий `--*-url`. Явно заданный URL не запускается автоматически. Для другого поставщика модели передайте JSON-профиль через `PROFILES` или `--opencode-profile`/`--claude-profile` и нужный ID модели. `--no-auto-start` запрещает временные серверы; `--no-session` делает отдельный запрос на каждый пакет правил.
 
-Каждый прогон сохраняет `summary.json` и отдельные `*.code-smells.json` в новом каталоге `debug-runs/`. Трасса `debug_trace` также печатается в stderr. Для локальной Ollama Agent Bridge показывает разрешённые профилем модели, но квоты аккаунта отсутствуют; это отражено в поле `usage.available=false`.
+Отдельной команды `agent-code-checker-debug` больше нет: это прикладной сценарий, а не функция библиотеки. Каждый прогон сохраняет `summary.json` и отдельные `*.code-smells.json`; трасса также печатается в stderr. Локальная Ollama не предоставляет квоты аккаунта через этот профиль (`usage.available=false`).
 
 Для встроенного каталога агенту по умолчанию передаются краткие английские
 критерии из `agent_code_checker/profiles/data/code_smells.en.json`. Исходный
