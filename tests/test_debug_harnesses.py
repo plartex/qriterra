@@ -14,6 +14,32 @@ from agent_code_checker import debug_harnesses as debug
 
 
 class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
+    async def test_auto_selection_includes_discovered_antigravity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            args = debug.parse_args(["--part", "agents", "--output-dir", folder])
+
+            class FakeClient:
+                async def capabilities(self, url):
+                    if not url.endswith(":8766"):
+                        raise OSError("not running")
+                    return {"backend": "agy_cli"}
+
+                async def info(self, url):
+                    return {"backend": "agy_cli", "capabilities": {
+                        "models": ["gemini-3.8-flash-medium"]}}
+
+                async def ask(self, url, prompt, **kwargs):
+                    return BridgeResult(url, None, None, "TASK_STATE_COMPLETED", "Стих")
+
+            with patch.object(debug, "discover_harnesses", return_value={
+                "antigravity": "C:/tools/agy.exe"}), \
+                 patch.object(debug, "BridgeClient", return_value=FakeClient()), \
+                 redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                status = await debug.run(args)
+            self.assertEqual(status, 0)
+            payload = json.loads(next(Path(folder).rglob("summary.json")).read_text(encoding="utf-8"))
+            self.assertEqual(set(payload["harnesses"]), {"antigravity"})
+
     async def test_temporary_server_uses_discovered_command_and_stops(self):
         with tempfile.TemporaryDirectory() as folder:
             args = debug.parse_args(["--agents", "opencode", "--output-dir", folder])
