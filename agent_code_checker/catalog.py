@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import replace
 from pathlib import Path
 from typing import cast
@@ -13,6 +14,8 @@ from .models import EvaluationProfile, RuleDefinition, Severity, VALID_SEVERITIE
 
 DEFAULT_CODE_SMELLS_CATALOG = Path(__file__).parent / "profiles" / "data" / "code_smells.min.json"
 DEFAULT_ENGLISH_PROFILE = Path(__file__).parent / "profiles" / "data" / "code_smells.en.json"
+DEFAULT_ENGLISH_SOURCE_HASH = Path(__file__).parent / "profiles" / "data" / "code_smells.en.sha256"
+_CYRILLIC = re.compile(r"[\u0400-\u04ff]")
 
 
 class CatalogError(ValueError):
@@ -90,8 +93,19 @@ def load_code_smells_profile(
     if language == "en":
         if not bundled:
             raise CatalogError("English prompt profile is only available for the bundled catalog")
-        english = _load_english_profile(hashlib.sha256(raw).hexdigest(), rules)
-        rules = [replace(rule, criterion_en=english[rule.id]) for rule in rules]
+        english = _load_english_profile(hashlib.sha256(raw).hexdigest(), payload, rules)
+        rules = [
+            replace(
+                rule,
+                summary=english[rule.id]["summary"],
+                definition=english[rule.id]["definition"],
+                symptoms=tuple(english[rule.id]["symptoms"]),
+                detection_hints=dict(english[rule.id]["detection_metrics"]),
+                criterion_en=english[rule.id]["definition"],
+                full_english=True,
+            )
+            for rule in rules
+        ]
 
     if rule_ids is not None:
         requested = list(dict.fromkeys(rule_ids))
@@ -117,27 +131,45 @@ def load_code_smells_profile(
     )
 
 
-def _load_english_profile(source_sha256: str, rules: list[RuleDefinition]) -> dict[str, str]:
+def _load_english_profile(
+    source_sha256: str, source: dict, rules: list[RuleDefinition],
+) -> dict[str, dict]:
     try:
         payload = json.loads(DEFAULT_ENGLISH_PROFILE.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        recorded_sha256 = DEFAULT_ENGLISH_SOURCE_HASH.read_text(encoding="ascii").strip()
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise CatalogError(f"Cannot load English prompt profile: {exc}") from exc
-    if payload.get("schema_version") != "1.0" or payload.get("source_catalog_sha256") != source_sha256:
+    if recorded_sha256 != source_sha256:
         raise CatalogError("English prompt profile is stale; regenerate it from the current catalog")
-    items = payload.get("rules")
-    if not isinstance(items, list) or len(items) != len(rules):
-        raise CatalogError("English prompt profile must contain every catalog rule")
+    _validate_translation_shape(source, payload)
+    items = payload["smells"]
     if [item.get("id") for item in items if isinstance(item, dict)] != [rule.id for rule in rules]:
         raise CatalogError("English prompt profile rule IDs or order do not match the catalog")
-    if any(not isinstance(item.get("criterion_en"), str) or not item["criterion_en"].strip() for item in items):
-        raise CatalogError("English prompt profile contains an empty criterion")
-    if any(
-        "\ufffd" in item["criterion_en"]
-        or any("\u0400" <= char <= "\u04ff" for char in item["criterion_en"])
-        for item in items
-    ):
-        raise CatalogError("English prompt profile contains invalid or untranslated characters")
-    return {item["id"]: item["criterion_en"].strip() for item in items}
+    return {item["id"]: item for item in items}
+
+
+def _validate_translation_shape(source, translated, path: str = "") -> None:
+    """Ensure the English mirror loses no field and never changes code or IDs."""
+    if isinstance(source, dict):
+        if not isinstance(translated, dict) or source.keys() != translated.keys():
+            raise CatalogError(f"English catalog fields differ at {path or '/'}")
+        for key, value in source.items():
+            _validate_translation_shape(value, translated[key], f"{path}/{key}")
+    elif isinstance(source, list):
+        if not isinstance(translated, list) or len(source) != len(translated):
+            raise CatalogError(f"English catalog array differs at {path}")
+        for index, value in enumerate(source):
+            _validate_translation_shape(value, translated[index], f"{path}/{index}")
+    elif isinstance(source, str):
+        if not isinstance(translated, str) or not translated.strip():
+            raise CatalogError(f"English catalog has empty text at {path}")
+        if path.endswith("/code") or not _CYRILLIC.search(source):
+            if translated != source:
+                raise CatalogError(f"English catalog changed non-translatable content at {path}")
+        elif _CYRILLIC.search(translated) or "\ufffd" in translated:
+            raise CatalogError(f"English catalog contains untranslated text at {path}")
+    elif translated != source or type(translated) is not type(source):
+        raise CatalogError(f"English catalog changed metadata at {path}")
 
 
 def _required_text(source: dict, key: str, index: int) -> str:

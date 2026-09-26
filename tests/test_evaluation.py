@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -54,9 +55,9 @@ class CatalogAndBatchingTest(unittest.TestCase):
         self.assertEqual(profile.rules[0].id, "long_method")
         self.assertEqual(profile.rules[-1].id, "duplicated_derived_state")
         self.assertEqual(profile.prompt_language, "en")
-        self.assertTrue(all(rule.criterion_en for rule in profile.rules))
+        self.assertTrue(all(rule.definition for rule in profile.rules))
 
-    def test_english_prompt_is_compact_and_russian_source_is_retained(self):
+    def test_english_prompt_preserves_russian_detection_details(self):
         english = load_code_smells_profile(rule_ids=["long_method"])
         russian = load_code_smells_profile(
             rule_ids=["long_method"], prompt_language="ru",
@@ -64,14 +65,62 @@ class CatalogAndBatchingTest(unittest.TestCase):
         english_rule = english.rules[0].prompt_dict()
         russian_rule = russian.rules[0].prompt_dict()
         self.assertEqual(english_rule["title"], "Long Method")
-        self.assertIn("criterion", english_rule)
-        self.assertNotIn("definition", english_rule)
+        self.assertIn("definition", english_rule)
+        self.assertIn("symptoms", english_rule)
+        self.assertIn("detection_hints", english_rule)
         self.assertIn("definition", russian_rule)
         self.assertEqual(english.rules[0].title, russian.rules[0].title)
-        self.assertLess(
-            len(json.dumps(english_rule, ensure_ascii=False)),
-            len(json.dumps(russian_rule, ensure_ascii=False)),
+        self.assertIn("30", english_rule["detection_hints"]["lines_of_code_loc"])
+        self.assertNotEqual(english_rule["definition"], russian_rule["definition"])
+
+    def test_explicit_compact_criterion_remains_supported(self):
+        russian = load_code_smells_profile(
+            rule_ids=["long_method"], prompt_language="ru",
+        ).rules[0]
+        compact = replace(russian, criterion_en="More than 30 lines")
+        self.assertEqual(compact.prompt_dict()["criterion"], "More than 30 lines")
+        self.assertNotIn("definition", compact.prompt_dict())
+
+    def test_english_translation_retains_source_metrics_and_examples(self):
+        from agent_code_checker.catalog import (
+            DEFAULT_CODE_SMELLS_CATALOG,
+            DEFAULT_ENGLISH_PROFILE,
+            DEFAULT_ENGLISH_SOURCE_HASH,
         )
+
+        russian = json.loads(DEFAULT_CODE_SMELLS_CATALOG.read_text(encoding="utf-8"))
+        english = json.loads(DEFAULT_ENGLISH_PROFILE.read_text(encoding="utf-8"))
+        self.assertEqual(russian.keys(), english.keys())
+        self.assertEqual(len(russian["categories"]), len(english["categories"]))
+        self.assertEqual(len(russian["smells"]), len(english["smells"]))
+        self.assertEqual(
+            [rule["id"] for rule in russian["smells"]],
+            [rule["id"] for rule in english["smells"]],
+        )
+        self.assertEqual(len(DEFAULT_ENGLISH_SOURCE_HASH.read_text(encoding="ascii").strip()), 64)
+        for original, translated in zip(russian["smells"], english["smells"], strict=True):
+            self.assertEqual(original.keys(), translated.keys())
+            self.assertEqual(translated["name"], original["name_en"])
+            self.assertEqual(original["bad_example"]["code"], translated["bad_example"]["code"])
+            self.assertEqual(original["good_example"]["code"], translated["good_example"]["code"])
+        duplicate = load_code_smells_profile(rule_ids=["duplicate_code"]).rules[0]
+        self.assertIn("85%", duplicate.detection_hints["token_similarity"])
+        self.assertIn("6", duplicate.detection_hints["token_similarity"])
+
+    def test_english_mirror_rejects_missing_fields_code_changes_and_russian(self):
+        from agent_code_checker.catalog import CatalogError, _validate_translation_shape
+
+        source = {"id": "rule", "definition": "Русское правило", "example": {"code": "print('ok')"}}
+        translated = {"id": "rule", "definition": "English rule", "example": {"code": "print('ok')"}}
+        _validate_translation_shape(source, translated)
+        with self.assertRaises(CatalogError):
+            _validate_translation_shape(source, {**translated, "extra": "lost parity"})
+        with self.assertRaises(CatalogError):
+            _validate_translation_shape(source, {**translated, "definition": "Русское правило"})
+        with self.assertRaises(CatalogError):
+            _validate_translation_shape(
+                source, {**translated, "example": {"code": "print('changed')"}},
+            )
 
     def test_custom_catalog_uses_russian_unless_english_is_requested(self):
         from agent_code_checker.catalog import DEFAULT_CODE_SMELLS_CATALOG

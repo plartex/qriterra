@@ -24,6 +24,7 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
             target = Path(folder) / "target.py"
             target.write_text("def f():\n    return 1\n", encoding="utf-8")
             args = debug.parse_args(["--part", "all", "--agents", "codex",
+                                     "--codex-model", "gpt-6-sol",
                                      "--target", str(target), "--rules", "long_method",
                                      "--output-dir", folder])
             events = []
@@ -56,10 +57,11 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(events, ["info", "poem", "evaluate"])
 
     def test_models_and_gemini_catalog_selection(self):
-        configured = {item.name: item for item in debug.harnesses(debug.parse_args([]))}
-        self.assertEqual(configured["codex"].model, "gpt-6-sol")
-        self.assertEqual(configured["opencode"].model, "qwen3.5:9b")
-        self.assertEqual(configured["claude_code"].model, "qwen3.5:9b")
+        args = debug.parse_args(["--agents", "antigravity,codex,opencode,claude_code"])
+        configured = {item.name: item for item in debug.harnesses(args)}
+        self.assertEqual(configured["codex"].model, debug.MODELS["codex"])
+        self.assertEqual(configured["opencode"].model, debug.MODELS["opencode"])
+        self.assertEqual(configured["claude_code"].model, debug.MODELS["claude_code"])
         self.assertEqual(configured["opencode"].tool_policy, "no_tools")
         self.assertEqual(debug.selected_model(
             configured["antigravity"], {"capabilities": {"models": [
@@ -71,7 +73,7 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_auto_selection_includes_discovered_antigravity(self):
         with tempfile.TemporaryDirectory() as folder:
-            args = debug.parse_args(["--part", "agents", "--output-dir", folder])
+            args = debug.parse_args(["--part", "agents", "--agents", "auto", "--output-dir", folder])
 
             class FakeClient:
                 async def capabilities(self, url):
@@ -99,6 +101,7 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
     async def test_agents_part_calls_info_then_poem_for_each_harness(self):
         with tempfile.TemporaryDirectory() as folder:
             args = debug.parse_args(["--part", "agents", "--agents", "codex,opencode",
+                                     "--codex-model", "gpt-6-sol",
                                      "--output-dir", folder])
 
             class FakeClient:

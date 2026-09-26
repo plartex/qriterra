@@ -9,6 +9,7 @@
     "smells"
   ],
   "properties": {
+    "$schema": { "type": "string" },
     "meta": {
       "type": "object",
       "required": [

@@ -85,8 +85,20 @@ class RuleDefinition:
     tags: tuple[str, ...] = ()
     executor: str = "llm"
     criterion_en: str | None = None
+    full_english: bool = False
 
     def prompt_dict(self) -> dict[str, Any]:
+        if self.full_english:
+            return {
+                "id": self.id,
+                "title": self.title_en,
+                "severity": self.severity,
+                "scope": self.scope,
+                "summary": self.summary,
+                "definition": self.definition,
+                "symptoms": list(self.symptoms),
+                "detection_hints": self.detection_hints,
+            }
         if self.criterion_en is not None:
             return {
                 "id": self.id,

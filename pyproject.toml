@@ -23,4 +23,4 @@ where = ["."]
 include = ["agent_code_checker*"]
 
 [tool.setuptools.package-data]
-agent_code_checker = ["profiles/data/*.json"]
+agent_code_checker = ["profiles/data/*.json", "profiles/data/*.sha256"]
