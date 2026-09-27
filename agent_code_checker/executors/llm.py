@@ -26,7 +26,7 @@ class LlmCheckExecutor:
     async def execute(self, request: BatchRequest):
         is_continuation = self.session_mode and self._has_target_context
         prompt = (
-            build_session_batch_prompt(request.batch_id, request.rules)
+            build_session_batch_prompt(request.batch_id, request.rules, target=request.target)
             if is_continuation else
             build_evaluation_prompt(request.batch_id, request.target, request.rules)
         )

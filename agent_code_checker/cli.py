@@ -5,11 +5,29 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
+from agent_bridge import HarnessLaunch, connect_harness
+
 from . import EvaluationService, EvaluationTarget, format_text_report, load_code_smells_profile
 from .providers import agent_bridge_provider_from_name
+
+
+_PROJECT_HARNESSES = {
+    "codex": ("codex", 8765, "BRIDGE_CODEX_URL"),
+    "antigravity": ("antigravity", 8766, "BRIDGE_ANTIGRAVITY_URL"),
+    "opencode": ("opencode", 8767, "BRIDGE_OPENCODE_URL"),
+    "claude_code": ("claude_code", 8768, "BRIDGE_CLAUDE_CODE_URL"),
+}
+
+
+def _project_harness(provider_name: str) -> tuple[str, int, str]:
+    name = provider_name.strip().lower().removeprefix("agent-bridge:")
+    if name not in _PROJECT_HARNESSES:
+        raise ValueError("Automatic project launch requires codex, antigravity, opencode or claude_code")
+    return _PROJECT_HARNESSES[name]
 
 
 def main() -> None:
@@ -23,12 +41,14 @@ def main() -> None:
     evaluate.add_argument("--profile", default="code_smells", choices=["code_smells"])
     evaluate.add_argument("--rules", help="Comma-separated rule IDs; defaults to every profile rule")
     evaluate.add_argument("--batch-size", type=int, default=10)
+    evaluate.add_argument("--max-project-seconds", type=float, default=1800)
     evaluate.add_argument(
         "--no-session", action="store_true",
         help="Use an independent agent request for every batch (comparison/fallback)",
     )
     evaluate.add_argument("--provider", default="agent-bridge:codex")
     evaluate.add_argument("--agent-url", help="A2A URL for any Agent Bridge profile")
+    evaluate.add_argument("--harness-profile", type=Path, help="OpenCode/Claude Code profile for temporary project launch")
     evaluate.add_argument("--tool-policy", choices=["no_tools", "read_only", "workspace_write"])
     evaluate.add_argument("--model")
     evaluate.add_argument("--reasoning-effort")
@@ -66,28 +86,63 @@ def main() -> None:
     profile = load_code_smells_profile(
         args.catalog, rule_ids=rule_ids, prompt_language=args.prompt_language,
     )
-    provider = agent_bridge_provider_from_name(
-        args.provider, peer_url=args.agent_url, tool_policy=args.tool_policy,
-    )
     try:
-        report = asyncio.run(
-            EvaluationService(provider).evaluate(
+        async def run_evaluation():
+            if target.kind == "project":
+                if args.no_session:
+                    raise ValueError("Project evaluation requires one persistent agent session")
+                if args.tool_policy not in {None, "read_only"}:
+                    raise ValueError("Project evaluation requires --tool-policy read_only")
+                if args.agent_url is not None and args.harness_profile is not None:
+                    raise ValueError("--harness-profile cannot be combined with --agent-url")
+                if args.agent_url is None:
+                    harness, port, env_name = _project_harness(args.provider)
+                    url = os.environ.get(env_name) or f"http://127.0.0.1:{port}"
+                else:
+                    harness = args.provider.strip().lower().removeprefix("agent-bridge:")
+                    url = args.agent_url
+                provider_policy = None if harness == "codex" else "read_only"
+                provider = agent_bridge_provider_from_name(
+                    args.provider, peer_url=url, tool_policy=provider_policy,
+                )
+                if args.agent_url is None:
+                    assert target.path is not None
+                    launch = HarnessLaunch(
+                        name=harness, url=url, workspace=target.path, model=args.model,
+                        profile_path=args.harness_profile, tool_policy="read_only",
+                    )
+                    async with connect_harness(launch):
+                        return await EvaluationService(provider).evaluate(
+                            target, profile, model=args.model, reasoning_effort=args.reasoning_effort,
+                            batch_size=args.batch_size, use_session=True, debug=args.debug,
+                            max_project_seconds=args.max_project_seconds,
+                            on_debug_event=debug_event,
+                        )
+            else:
+                if args.harness_profile is not None:
+                    raise ValueError("--harness-profile is only valid for project targets")
+                provider = agent_bridge_provider_from_name(
+                    args.provider, peer_url=args.agent_url, tool_policy=args.tool_policy,
+                )
+            return await EvaluationService(provider).evaluate(
                 target,
                 profile,
                 model=args.model,
                 reasoning_effort=args.reasoning_effort,
                 batch_size=args.batch_size,
+                max_project_seconds=args.max_project_seconds,
                 use_session=not args.no_session,
                 debug=args.debug,
-                on_debug_event=(
-                    lambda event: print(
-                        "[debug] " + json.dumps(event, ensure_ascii=False),
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                ) if args.debug else None,
+                on_debug_event=debug_event,
             )
-        )
+
+        debug_event = (
+            lambda event: print(
+                "[debug] " + json.dumps(event, ensure_ascii=False),
+                file=sys.stderr, flush=True,
+            )
+        ) if args.debug else None
+        report = asyncio.run(run_evaluation())
     except ValueError as exc:
         parser.error(str(exc))
     rendered = report.to_json() if args.json_output else format_text_report(report)

@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from contextlib import asynccontextmanager
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -475,27 +476,32 @@ class EvaluationServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_evidence_outside_project_turns_batch_into_error(self):
         profile = load_code_smells_profile(rule_ids=["long_method"])
+        batch_id = None
 
         def handler(prompt, workspace, model):
-            return response_for(
-                prompt,
-                lambda rule: {
-                    "rule_id": rule["id"],
-                    "status": "failed",
-                    "confidence": 0.9,
-                    "evidence": [
-                        {
-                            "path": "../outside.py",
-                            "start_line": 1,
-                            "end_line": 1,
-                            "excerpt": "outside",
-                            "reason": "Invalid out-of-scope evidence.",
-                        }
-                    ],
-                },
-            )
+            nonlocal batch_id
+            if "REQUEST_DATA_JSON\n" in prompt:
+                batch_id = request_from_prompt(prompt)["batch_id"]
+            return json.dumps({
+                "schema_version": "2.0", "batch_id": batch_id,
+                "results": [{
+                    "rule_id": "long_method", "status": "failed", "confidence": 0.9,
+                    "coverage": {"status": "complete", "inspected_paths": ["inside.py"], "limitations": []},
+                    "findings": [{"summary": "Invalid location", "evidence": [{
+                        "path": "../outside.py", "start_line": 1, "end_line": 1,
+                        "excerpt": "outside", "reason": "Invalid out-of-scope evidence.",
+                    }]}],
+                }],
+            })
 
-        provider = FakeAgentProvider(handler)
+        class SessionFake(FakeAgentProvider):
+            session_id = "test-session"
+
+            @asynccontextmanager
+            async def open_session(self, *, workspace=None, model=None, reasoning_effort=None):
+                yield self
+
+        provider = SessionFake(handler)
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             (root / "inside.py").write_text("print('inside')\n", encoding="utf-8")

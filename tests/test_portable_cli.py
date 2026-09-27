@@ -1,6 +1,9 @@
 """CLI addresses a profile without depending on neighboring repositories."""
 
 import unittest
+import tempfile
+from contextlib import asynccontextmanager
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -8,6 +11,48 @@ from agent_code_checker.cli import main
 
 
 class PortableCliTests(unittest.TestCase):
+    def test_project_custom_profile_uses_existing_server_without_autostart(self):
+        report = SimpleNamespace(to_json=lambda: '{"ok":true}', summary=SimpleNamespace(errors=0))
+        with tempfile.TemporaryDirectory() as folder, patch("sys.argv", [
+            "agent-code-checker", "evaluate", "project", folder,
+            "--provider", "agent-bridge:my-local-agent", "--agent-url", "http://127.0.0.1:8999",
+            "--rules", "duplicate_code", "--json",
+        ]), patch("agent_code_checker.cli.connect_harness") as connect, \
+             patch("agent_code_checker.cli.agent_bridge_provider_from_name") as provider, \
+             patch("agent_code_checker.cli.EvaluationService") as service, \
+             patch("builtins.print"):
+            service.return_value.evaluate = AsyncMock(return_value=report)
+            main()
+
+        connect.assert_not_called()
+        provider.assert_called_once_with(
+            "agent-bridge:my-local-agent", peer_url="http://127.0.0.1:8999",
+            tool_policy="read_only",
+        )
+
+    def test_project_auto_starts_read_only_harness_in_target_workspace(self):
+        report = SimpleNamespace(to_json=lambda: '{"ok":true}', summary=SimpleNamespace(errors=0))
+        launches = []
+
+        @asynccontextmanager
+        async def connect(launch):
+            launches.append(launch)
+            yield SimpleNamespace(url=launch.url)
+
+        with tempfile.TemporaryDirectory() as folder, patch("sys.argv", [
+            "agent-code-checker", "evaluate", "project", folder,
+            "--provider", "agent-bridge:codex", "--rules", "duplicate_code", "--json",
+        ]), patch("agent_code_checker.cli.connect_harness", connect), \
+             patch("agent_code_checker.cli.agent_bridge_provider_from_name") as provider, \
+             patch("agent_code_checker.cli.EvaluationService") as service, \
+             patch("builtins.print"):
+            service.return_value.evaluate = AsyncMock(return_value=report)
+            main()
+
+        self.assertEqual(launches[0].workspace, Path(folder).resolve())
+        self.assertEqual(launches[0].tool_policy, "read_only")
+        self.assertEqual(service.return_value.evaluate.call_args.args[0].kind, "project")
+
     def test_custom_bridge_profile_uses_explicit_url_and_tool_policy(self):
         report = SimpleNamespace(to_json=lambda: '{"ok":true}', summary=SimpleNamespace(errors=0))
         with patch("sys.argv", [

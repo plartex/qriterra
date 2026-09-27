@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections import Counter
 from datetime import datetime, timezone
@@ -10,7 +11,7 @@ from typing import Any, Callable
 
 from .batching import plan_batches
 from .executors import BatchRequest, CheckExecutor, LlmCheckExecutor
-from .models import CheckResult, EvaluationProfile, EvaluationReport, EvaluationTarget
+from .models import CheckResult, EvaluationProfile, EvaluationReport, EvaluationTarget, ProjectCoverage
 from .providers.base import AgentProvider
 from .scoring import summarize
 
@@ -28,12 +29,16 @@ class EvaluationService:
         model: str | None = None,
         reasoning_effort: str | None = None,
         batch_size: int = 10,
+        max_project_seconds: float = 1800,
         use_session: bool = True,
         debug: bool = False,
         on_debug_event: Callable[[dict[str, Any]], None] | None = None,
     ) -> EvaluationReport:
+        if target.kind == "project" and max_project_seconds <= 0:
+            raise ValueError("max_project_seconds must be positive")
         batches = plan_batches(profile.rules, batch_size=batch_size)
         started = monotonic()
+        deadline = started + max_project_seconds if target.kind == "project" else None
         trace: list[dict[str, Any]] = []
 
         def emit(event: str, details: dict[str, Any]) -> None:
@@ -51,16 +56,19 @@ class EvaluationService:
 
         collected: dict[str, CheckResult] = {}
         warnings: list[str] = []
+        if target.kind == "project":
+            warnings.append("Project coverage is agent-reported, not independently proven exhaustive.")
         if not self.provider.capabilities.read_only:
             warnings.append("The selected provider cannot guarantee a read-only agent sandbox.")
         if target.kind != "snippet" and not self.provider.capabilities.file_targets:
             raise ValueError("The selected provider does not support file or project targets")
-        if target.kind == "project" and not self.provider.capabilities.dynamic_workspace:
+        if target.kind == "project" and not self.provider.capabilities.project_tools:
             raise ValueError(
-                "Project evaluation is not supported by this provider yet: the bridge has a "
-                "fixed workspace and does not send project content to the agent. "
-                "No model calls were made. Use file or snippet targets."
+                "Project evaluation requires read-only agent tools; this provider does not "
+                "offer them. No model calls were made."
             )
+        if target.kind == "project" and not use_session:
+            raise ValueError("Project evaluation requires one persistent agent session. No model calls were made.")
 
         emit("run_started", {
             "target_kind": target.kind,
@@ -68,6 +76,7 @@ class EvaluationService:
             "rules": len(profile.rules),
             "batches": len(batches),
             "batch_size": batch_size,
+            "max_project_seconds": max_project_seconds if target.kind == "project" else None,
         })
 
         async def run_batches(executors: dict[str, CheckExecutor]) -> None:
@@ -87,15 +96,30 @@ class EvaluationService:
                     "rule_ids": [rule.id for rule in rules],
                 })
                 try:
-                    batch_results = await executor.execute(
-                        BatchRequest(
-                            batch_id=batch_id,
-                            target=target,
-                            rules=rules,
-                            model=model,
-                            reasoning_effort=reasoning_effort,
-                            emit=emit if debug else None,
-                        )
+                    request = BatchRequest(
+                        batch_id=batch_id,
+                        target=target,
+                        rules=rules,
+                        model=model,
+                        reasoning_effort=reasoning_effort,
+                        emit=emit if debug else None,
+                    )
+                    if deadline is not None:
+                        remaining = deadline - monotonic()
+                        if remaining <= 0:
+                            raise asyncio.TimeoutError
+                        batch_results = await asyncio.wait_for(executor.execute(request), timeout=remaining)
+                    else:
+                        batch_results = await executor.execute(request)
+                except asyncio.TimeoutError:
+                    reason = f"Project time budget of {max_project_seconds:g}s exhausted"
+                    warnings.append(reason)
+                    emit("batch_budget_exhausted", {"batch_id": batch_id, "reason": reason})
+                    batch_results = tuple(
+                        CheckResult(
+                            rule_id=rule.id, status="inconclusive", severity=rule.severity,
+                            reason=reason, coverage=ProjectCoverage("partial", (), (reason,)),
+                        ) for rule in rules
                     )
                 except Exception as exc:
                     reason = f"{type(exc).__name__}: {exc}"
@@ -111,6 +135,10 @@ class EvaluationService:
                             status="error",
                             severity=rule.severity,
                             reason=reason,
+                            coverage=(
+                                ProjectCoverage("partial", (), (reason,))
+                                if target.kind == "project" else None
+                            ),
                         )
                         for rule in rules
                     )
@@ -125,8 +153,13 @@ class EvaluationService:
                 })
 
         open_session = getattr(self.provider, "open_session", None)
-        if use_session and len(batches) > 1 and callable(open_session):
-            async with open_session(model=model, reasoning_effort=reasoning_effort) as session_provider:
+        if target.kind == "project" and not callable(open_session):
+            raise ValueError("Project provider must support sessions. No model calls were made.")
+        if use_session and callable(open_session) and (target.kind == "project" or len(batches) > 1):
+            session_options = {"model": model, "reasoning_effort": reasoning_effort}
+            if target.kind == "project":
+                session_options["workspace"] = target.path
+            async with open_session(**session_options) as session_provider:
                 emit("session_opened", {"session_id": session_provider.session_id})
                 executors = dict(self.executors)
                 executors["llm"] = LlmCheckExecutor(session_provider, session_mode=True)
@@ -157,7 +190,7 @@ class EvaluationService:
             profile=profile,
             target=target,
             provider=self.provider.descriptor(model, reasoning_effort),
-            summary=summarize(ordered),
+            summary=summarize(ordered, project=target.kind == "project"),
             results=ordered,
             warnings=tuple(warnings),
             debug_trace=tuple(trace),

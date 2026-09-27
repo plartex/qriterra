@@ -15,6 +15,7 @@ class ProviderCapabilities:
     dynamic_workspace: bool = False
     read_only: bool = False
     structured_output: bool = False
+    project_tools: bool = False
 
 
 @dataclass(frozen=True)

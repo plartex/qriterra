@@ -158,6 +158,32 @@ class Evidence:
 
 
 @dataclass(frozen=True)
+class ProjectFinding:
+    summary: str
+    evidence: tuple[Evidence, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"summary": self.summary, "evidence": [item.to_dict() for item in self.evidence]}
+
+
+@dataclass(frozen=True)
+class ProjectCoverage:
+    """The agent's declaration, not independently proven exhaustive coverage."""
+
+    status: Literal["complete", "partial"]
+    inspected_paths: tuple[str, ...]
+    limitations: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "inspected_paths": list(self.inspected_paths),
+            "limitations": list(self.limitations),
+            "basis": "agent_reported",
+        }
+
+
+@dataclass(frozen=True)
 class CheckResult:
     rule_id: str
     status: CheckStatus
@@ -165,6 +191,8 @@ class CheckResult:
     confidence: float | None = None
     evidence: tuple[Evidence, ...] = ()
     reason: str | None = None
+    findings: tuple[ProjectFinding, ...] = ()
+    coverage: ProjectCoverage | None = None
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
@@ -176,6 +204,9 @@ class CheckResult:
         }
         if self.reason is not None:
             result["reason"] = self.reason
+        if self.coverage is not None:
+            result["findings"] = [item.to_dict() for item in self.findings]
+            result["coverage"] = self.coverage.to_dict()
         return result
 
 
@@ -237,7 +268,7 @@ class EvaluationReport:
 
     def to_dict(self) -> dict[str, Any]:
         result = {
-            "schema_version": self.schema_version,
+            "schema_version": "2.0" if self.target.kind == "project" else self.schema_version,
             "run_id": self.run_id,
             "profile": self.profile.to_dict(),
             "target": self.target.to_dict(),

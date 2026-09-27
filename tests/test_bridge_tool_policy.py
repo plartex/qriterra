@@ -1,6 +1,8 @@
 """The checker must keep analysis-only policy across one-shot and session calls."""
 
 import unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 from agent_bridge import BridgeResult
@@ -46,3 +48,52 @@ class BridgeToolPolicyTests(unittest.IsolatedAsyncioTestCase):
     def test_invalid_policy_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "tool_policy"):
             AgentBridgeProvider("http://127.0.0.1:8767", "opencode-local", tool_policy="invalid")
+
+    async def test_project_session_checks_workspace_and_read_only_tools_before_start(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            provider = AgentBridgeProvider("http://127.0.0.1:8767", "opencode-local", tool_policy="read_only")
+            provider.client.capabilities = AsyncMock(return_value={
+                "workspace": str(root), "read_only_tools": True,
+            })
+
+            class Session:
+                id = "11111111-1111-4111-8111-111111111111"
+
+                async def __aenter__(self):
+                    return self
+
+                async def __aexit__(self, *_args):
+                    pass
+
+            provider.client.session = unittest.mock.Mock(return_value=Session())
+            async with provider.open_session(workspace=root) as session:
+                self.assertEqual(session.session_id, Session.id)
+
+            self.assertEqual(provider.client.session.call_args.kwargs["tool_policy"], "read_only")
+
+    async def test_project_session_rejects_wrong_workspace_without_model_call(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            provider = AgentBridgeProvider("http://127.0.0.1:8765", "codex")
+            provider.client.capabilities = AsyncMock(return_value={
+                "workspace": str(root.parent), "read_only_tools": True,
+            })
+            provider.client.session = unittest.mock.Mock()
+
+            with self.assertRaisesRegex(ValueError, "workspace"):
+                async with provider.open_session(workspace=root):
+                    pass
+            provider.client.session.assert_not_called()
+
+    async def test_project_session_rejects_unknown_tool_enforcement(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            provider = AgentBridgeProvider("http://127.0.0.1:8765", "codex")
+            provider.client.capabilities = AsyncMock(return_value={"workspace": str(root)})
+            provider.client.session = unittest.mock.Mock()
+
+            with self.assertRaisesRegex(ValueError, "read-only tools"):
+                async with provider.open_session(workspace=root):
+                    pass
+            provider.client.session.assert_not_called()

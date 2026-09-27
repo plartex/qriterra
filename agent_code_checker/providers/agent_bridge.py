@@ -36,6 +36,7 @@ class AgentBridgeProvider:
             dynamic_workspace=False,
             read_only=self._bridge_read_only or tool_policy in {"no_tools", "read_only"},
             structured_output=False,
+            project_tools=self._bridge_read_only or tool_policy == "read_only",
         )
 
     def descriptor(
@@ -76,10 +77,29 @@ class AgentBridgeProvider:
     async def open_session(
         self,
         *,
+        workspace: Path | None = None,
         model: str | None = None,
         reasoning_effort: str | None = None,
     ) -> AsyncIterator[_SessionProvider]:
         """Keep one AB conversation alive for all batches in one evaluation."""
+        if workspace is not None:
+            if not self.capabilities.project_tools:
+                raise ValueError("Project evaluation requires read-only tools; no model calls were made")
+            remote = await self.client.capabilities(self.peer_url)
+            if remote.get("read_only_tools") is not True:
+                raise ValueError("Bridge cannot confirm read-only tools; no model calls were made")
+            remote_workspace = remote.get("workspace")
+            if not isinstance(remote_workspace, str) or not Path(remote_workspace).is_absolute():
+                raise ValueError("Bridge did not report a valid workspace; no model calls were made")
+            expected = workspace.resolve(strict=True)
+            try:
+                actual = Path(remote_workspace).resolve(strict=True)
+            except OSError as exc:
+                raise ValueError("Bridge reported an inaccessible workspace; no model calls were made") from exc
+            if os.path.normcase(str(actual)) != os.path.normcase(str(expected)):
+                raise ValueError(
+                    f"Bridge workspace {actual} does not match project {expected}; no model calls were made"
+                )
         options = {
             "model": model,
             "reasoning_effort": reasoning_effort,
@@ -145,6 +165,10 @@ def agent_bridge_provider_from_name(
         "agent-bridge:codex": ("codex", "BRIDGE_CODEX_URL"),
         "antigravity": ("antigravity", "BRIDGE_ANTIGRAVITY_URL"),
         "agent-bridge:antigravity": ("antigravity", "BRIDGE_ANTIGRAVITY_URL"),
+        "opencode": ("opencode", "BRIDGE_OPENCODE_URL"),
+        "agent-bridge:opencode": ("opencode", "BRIDGE_OPENCODE_URL"),
+        "claude_code": ("claude_code", "BRIDGE_CLAUDE_CODE_URL"),
+        "agent-bridge:claude_code": ("claude_code", "BRIDGE_CLAUDE_CODE_URL"),
     }
     if normalized in aliases:
         agent, env_name = aliases[normalized]

@@ -8,6 +8,8 @@ from .models import (
     EvaluationSummary,
     EvaluationTarget,
     Evidence,
+    ProjectCoverage,
+    ProjectFinding,
     RuleDefinition,
 )
 from .reporting import format_text_report
@@ -22,6 +24,8 @@ __all__ = [
     "EvaluationSummary",
     "EvaluationTarget",
     "Evidence",
+    "ProjectCoverage",
+    "ProjectFinding",
     "RuleDefinition",
     "format_text_report",
     "load_code_smells_profile",

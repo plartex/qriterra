@@ -6,7 +6,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .models import CheckResult, EvaluationTarget, Evidence, RuleDefinition, VALID_STATUSES
+from .models import (
+    CheckResult, EvaluationTarget, Evidence, ProjectCoverage, ProjectFinding,
+    RuleDefinition, VALID_STATUSES,
+)
 
 
 class BatchProtocolError(ValueError):
@@ -26,8 +29,9 @@ def validate_batch_response(
         raise BatchProtocolError(f"response is not JSON: {exc}") from exc
     if not isinstance(payload, dict):
         raise BatchProtocolError("response must be a JSON object")
-    if payload.get("schema_version") != "1.0":
-        raise BatchProtocolError("schema_version must be 1.0")
+    version = "2.0" if target.kind == "project" else "1.0"
+    if payload.get("schema_version") != version:
+        raise BatchProtocolError(f"schema_version must be {version}")
     if payload.get("batch_id") != batch_id:
         raise BatchProtocolError("batch_id does not match the request")
     items = payload.get("results")
@@ -52,7 +56,78 @@ def validate_batch_response(
         extra = sorted(actual - expected)
         raise BatchProtocolError(f"rule ids do not match; missing={missing}, extra={extra}")
 
-    return tuple(_parse_result(by_id[rule.id], rule, target) for rule in rules)
+    parser = _parse_project_result if target.kind == "project" else _parse_result
+    return tuple(parser(by_id[rule.id], rule, target) for rule in rules)
+
+
+def _parse_project_result(source: dict[str, Any], rule: RuleDefinition, target: EvaluationTarget) -> CheckResult:
+    status = source.get("status")
+    if status not in VALID_STATUSES:
+        raise BatchProtocolError(f"Rule {rule.id} has invalid status: {status}")
+    confidence = source.get("confidence")
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
+        raise BatchProtocolError(f"Rule {rule.id} confidence must be between 0 and 1")
+    coverage = _parse_project_coverage(source.get("coverage"), rule.id, target)
+    raw_findings = source.get("findings")
+    if not isinstance(raw_findings, list):
+        raise BatchProtocolError(f"Rule {rule.id} findings must be an array")
+    findings: list[ProjectFinding] = []
+    for index, item in enumerate(raw_findings):
+        if not isinstance(item, dict) or not isinstance(item.get("summary"), str) or not item["summary"].strip():
+            raise BatchProtocolError(f"Rule {rule.id} finding[{index}] requires a summary")
+        raw_evidence = item.get("evidence")
+        if not isinstance(raw_evidence, list) or not raw_evidence:
+            raise BatchProtocolError(f"Rule {rule.id} finding[{index}] requires evidence")
+        evidence = tuple(
+            _parse_evidence(entry, rule.id, target, evidence_index)
+            for evidence_index, entry in enumerate(raw_evidence)
+        )
+        findings.append(ProjectFinding(item["summary"].strip(), evidence))
+    reason = source.get("reason")
+    if reason is not None and (not isinstance(reason, str) or not reason.strip()):
+        raise BatchProtocolError(f"Rule {rule.id} reason must be a nonempty string")
+    if status == "failed" and not findings:
+        raise BatchProtocolError(f"Rule {rule.id} failed without findings")
+    if status != "failed" and findings:
+        raise BatchProtocolError(f"Rule {rule.id} may only include findings when failed")
+    if status == "passed" and coverage.status != "complete":
+        raise BatchProtocolError(f"Rule {rule.id} cannot pass with partial coverage")
+    if status in {"skipped", "inconclusive", "error"} and reason is None:
+        raise BatchProtocolError(f"Rule {rule.id} with status {status} requires reason")
+    return CheckResult(
+        rule_id=rule.id, status=status, severity=rule.severity,
+        confidence=float(confidence), findings=tuple(findings), coverage=coverage,
+        reason=reason.strip() if isinstance(reason, str) else None,
+    )
+
+
+def _parse_project_coverage(source: Any, rule_id: str, target: EvaluationTarget) -> ProjectCoverage:
+    if not isinstance(source, dict) or source.get("status") not in {"complete", "partial"}:
+        raise BatchProtocolError(f"Rule {rule_id} coverage.status must be complete or partial")
+    paths = source.get("inspected_paths")
+    limitations = source.get("limitations")
+    if not isinstance(paths, list) or any(not isinstance(path, str) or not path.strip() for path in paths):
+        raise BatchProtocolError(f"Rule {rule_id} coverage.inspected_paths must be an array of paths")
+    if not isinstance(limitations, list) or any(
+        not isinstance(item, str) or not item.strip() for item in limitations
+    ):
+        raise BatchProtocolError(f"Rule {rule_id} coverage.limitations must be an array of strings")
+    if source["status"] == "partial" and not limitations:
+        raise BatchProtocolError(f"Rule {rule_id} partial coverage requires limitations")
+    if source["status"] == "complete" and (not paths or limitations):
+        raise BatchProtocolError(f"Rule {rule_id} complete coverage requires inspected paths and no limitations")
+    assert target.path is not None
+    normalized = []
+    for path in paths:
+        candidate = (target.path / path).resolve(strict=False)
+        try:
+            relative = candidate.relative_to(target.path)
+        except ValueError as exc:
+            raise BatchProtocolError(f"Rule {rule_id} inspected path points outside the project") from exc
+        if not candidate.exists():
+            raise BatchProtocolError(f"Rule {rule_id} inspected path does not exist")
+        normalized.append(relative.as_posix())
+    return ProjectCoverage(source["status"], tuple(normalized), tuple(item.strip() for item in limitations))
 
 
 def _parse_result(source: dict[str, Any], rule: RuleDefinition, target: EvaluationTarget) -> CheckResult:
@@ -115,6 +190,11 @@ def _parse_evidence(
         raise BatchProtocolError(f"Rule {rule_id} evidence[{index}] requires reason")
     normalized_path = _validate_evidence_path(source.get("path"), target, rule_id, index)
     _validate_line_range(target, normalized_path, start, end, rule_id, index)
+    if target.kind == "project":
+        assert target.path is not None and normalized_path is not None
+        lines = (target.path / normalized_path).read_text(encoding="utf-8", errors="replace").splitlines()
+        if excerpt.strip() not in "\n".join(lines[start - 1:end]):
+            raise BatchProtocolError(f"Rule {rule_id} evidence[{index}] excerpt does not match source lines")
     return Evidence(
         path=normalized_path,
         start_line=start,

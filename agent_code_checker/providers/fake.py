@@ -22,6 +22,7 @@ class FakeAgentProvider:
         dynamic_workspace=True,
         read_only=True,
         structured_output=True,
+        project_tools=True,
     )
 
     def __init__(self, handler: FakeHandler):

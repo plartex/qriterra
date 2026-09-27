@@ -24,11 +24,19 @@ def format_text_report(report: EvaluationReport) -> str:
         for result in failed:
             title = titles.get(result.rule_id, result.rule_id)
             lines.append(f"- [{result.severity.upper()}] {result.rule_id}: {title}")
-            for evidence in result.evidence:
-                location = "snippet" if evidence.path is None else evidence.path
-                lines.append(
-                    f"  {location}:{evidence.start_line}-{evidence.end_line} — {evidence.reason}"
-                )
+            if result.findings:
+                for finding in result.findings:
+                    lines.append(f"  • {finding.summary}")
+                    for evidence in finding.evidence:
+                        lines.append(
+                            f"    {evidence.path}:{evidence.start_line}-{evidence.end_line} — {evidence.reason}"
+                        )
+            else:
+                for evidence in result.evidence:
+                    location = "snippet" if evidence.path is None else evidence.path
+                    lines.append(
+                        f"  {location}:{evidence.start_line}-{evidence.end_line} — {evidence.reason}"
+                    )
     unresolved = [result for result in report.results if result.status in {"skipped", "inconclusive", "error"}]
     if unresolved:
         lines.append("")
