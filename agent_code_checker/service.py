@@ -64,7 +64,7 @@ class EvaluationService:
             raise ValueError("The selected provider does not support file or project targets")
         if target.kind == "project" and not self.provider.capabilities.project_tools:
             raise ValueError(
-                "Project evaluation requires read-only agent tools; this provider does not "
+                "Project evaluation requires agent tools; this provider does not "
                 "offer them. No model calls were made."
             )
         if target.kind == "project" and not use_session:

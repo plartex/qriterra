@@ -25,7 +25,7 @@ class AgentBridgeProvider:
             try:
                 tool_policy = ToolPolicy(tool_policy).value
             except ValueError as exc:
-                raise ValueError("tool_policy must be no_tools, read_only, or workspace_write") from exc
+                raise ValueError("tool_policy must be no_tools, read_only, workspace_write, or full_access") from exc
         self.peer_url = peer_url.rstrip("/")
         self.agent = agent.strip()
         self.tool_policy = tool_policy
@@ -36,7 +36,7 @@ class AgentBridgeProvider:
             dynamic_workspace=False,
             read_only=self._bridge_read_only or tool_policy in {"no_tools", "read_only"},
             structured_output=False,
-            project_tools=self._bridge_read_only or tool_policy == "read_only",
+            project_tools=tool_policy != "no_tools",
         )
 
     def descriptor(
@@ -84,10 +84,14 @@ class AgentBridgeProvider:
         """Keep one AB conversation alive for all batches in one evaluation."""
         if workspace is not None:
             if not self.capabilities.project_tools:
-                raise ValueError("Project evaluation requires read-only tools; no model calls were made")
-            remote = await self.client.capabilities(self.peer_url)
-            if remote.get("read_only_tools") is not True:
-                raise ValueError("Bridge cannot confirm read-only tools; no model calls were made")
+                raise ValueError("Project evaluation requires agent tools; no model calls were made")
+            remote = await self.client.identity(self.peer_url)
+            if (remote.get("backend") == "agy_cli" and self.tool_policy == "full_access"
+                    and remote.get("agy_permission_mode") != "all"):
+                raise ValueError("Antigravity Bridge does not have full_access enabled; no model calls were made")
+            if (self.tool_policy == "full_access" and remote.get("backend") in {"opencode", "claude_code"}
+                    and remote.get("max_tool_policy") != "full_access"):
+                raise ValueError("Bridge profile does not allow full_access; no model calls were made")
             remote_workspace = remote.get("workspace")
             if not isinstance(remote_workspace, str) or not Path(remote_workspace).is_absolute():
                 raise ValueError("Bridge did not report a valid workspace; no model calls were made")

@@ -53,9 +53,7 @@ class BridgeToolPolicyTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder).resolve()
             provider = AgentBridgeProvider("http://127.0.0.1:8767", "opencode-local", tool_policy="read_only")
-            provider.client.capabilities = AsyncMock(return_value={
-                "workspace": str(root), "read_only_tools": True,
-            })
+            provider.client.identity = AsyncMock(return_value={"workspace": str(root)})
 
             class Session:
                 id = "11111111-1111-4111-8111-111111111111"
@@ -76,9 +74,7 @@ class BridgeToolPolicyTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder).resolve()
             provider = AgentBridgeProvider("http://127.0.0.1:8765", "codex")
-            provider.client.capabilities = AsyncMock(return_value={
-                "workspace": str(root.parent), "read_only_tools": True,
-            })
+            provider.client.identity = AsyncMock(return_value={"workspace": str(root.parent)})
             provider.client.session = unittest.mock.Mock()
 
             with self.assertRaisesRegex(ValueError, "workspace"):
@@ -86,14 +82,39 @@ class BridgeToolPolicyTests(unittest.IsolatedAsyncioTestCase):
                     pass
             provider.client.session.assert_not_called()
 
-    async def test_project_session_rejects_unknown_tool_enforcement(self):
+    async def test_project_session_accepts_antigravity_full_access_without_read_only_claim(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder).resolve()
-            provider = AgentBridgeProvider("http://127.0.0.1:8765", "codex")
-            provider.client.capabilities = AsyncMock(return_value={"workspace": str(root)})
-            provider.client.session = unittest.mock.Mock()
+            provider = AgentBridgeProvider(
+                "http://127.0.0.1:8766", "antigravity", tool_policy="full_access",
+            )
+            provider.client.identity = AsyncMock(return_value={
+                "workspace": str(root), "backend": "agy_cli", "agy_permission_mode": "all",
+            })
 
-            with self.assertRaisesRegex(ValueError, "read-only tools"):
+            class Session:
+                id = "11111111-1111-4111-8111-111111111111"
+
+                async def __aenter__(self):
+                    return self
+
+                async def __aexit__(self, *_args):
+                    pass
+
+            provider.client.session = unittest.mock.Mock(return_value=Session())
+            async with provider.open_session(workspace=root):
+                pass
+            self.assertEqual(provider.client.session.call_args.kwargs["tool_policy"], "full_access")
+
+    async def test_project_full_access_rejects_old_antigravity_server_before_model_call(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            provider = AgentBridgeProvider("http://127.0.0.1:8766", "antigravity", tool_policy="full_access")
+            provider.client.identity = AsyncMock(return_value={
+                "workspace": str(root), "backend": "agy_cli", "agy_permission_mode": "settings",
+            })
+            provider.client.session = unittest.mock.Mock()
+            with self.assertRaisesRegex(ValueError, "does not have full_access"):
                 async with provider.open_session(workspace=root):
                     pass
             provider.client.session.assert_not_called()

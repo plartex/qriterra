@@ -335,9 +335,9 @@ class EvaluationServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(prompts), 2)
         self.assertTrue(all("unique_source_marker" in prompt for prompt in prompts))
 
-    async def test_project_target_rejected_before_model_call_for_fixed_workspace_bridge(self):
+    async def test_project_target_rejected_without_agent_tools_before_model_call(self):
         with tempfile.TemporaryDirectory() as folder:
-            provider = AgentBridgeProvider("http://127.0.0.1:1", "antigravity")
+            provider = AgentBridgeProvider("http://127.0.0.1:1", "antigravity", tool_policy="no_tools")
             with self.assertRaisesRegex(ValueError, "No model calls were made"):
                 await EvaluationService(provider).evaluate(
                     EvaluationTarget.project(folder),

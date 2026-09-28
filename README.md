@@ -55,14 +55,33 @@ $checkerSource = 'C:\path\to\agent-code-checker'
   --debug --json --output project.code-quality.json
 ```
 
-Проектный режим открывает одну read-only сессию даже для одного пакета правил.
+Та же проверка через временный Antigravity Bridge:
+
+```powershell
+& .\.venv\Scripts\agent-code-checker.exe evaluate project 'D:\path\to\repo' `
+  --provider agent-bridge:antigravity --tool-policy full_access `
+  --rules duplicate_code,cyclic_dependency --max-project-seconds 900 `
+  --debug --json --output project.antigravity.code-quality.json
+```
+
+Проектный режим открывает одну сессию даже для одного пакета правил.
 Агент сам читает и ищет файлы, решает семантические вопросы; чекер не запускает
 AST/CPD-детектор. Существующий Bridge можно указать через `--agent-url`, но он
-должен сообщить точно тот же workspace и поддержку read-only инструментов.
+должен сообщить точно тот же workspace.
 Для временного OpenCode/Claude Code укажите `--provider agent-bridge:opencode`
 или `agent-bridge:claude_code`, модель и, если требуется, `--harness-profile`.
-Antigravity CLI пока не может гарантировать read-only доступ к инструментам,
-поэтому проектный режим с ним отклоняется до вызова модели.
+По умолчанию Codex, OpenCode и Claude Code получают `read_only`; Antigravity
+автоматически запускается с `full_access`, поскольку его CLI не гарантирует
+`read_only` в headless-режиме. Для всех харнессов можно явно передать
+`--tool-policy full_access` или `workspace_write` (кроме Antigravity, которому
+для проектного режима нужен `full_access`). Для OpenCode/Claude Code пользовательский
+профиль должен разрешать выбранный уровень через `max_tool_policy`. Чекер
+по-прежнему только выявляет проблемы и просит агента не менять файлы, однако
+при `full_access` это требование в промпте, а не техническая гарантия.
+Контрольный live-прогон Antigravity на двух файлах и одном правиле
+`duplicate_code` завершился за 173,5 секунды и сообщил 205 154 токена суммарно;
+стоимость полного проекта может быть значительно выше. Для первых запусков
+ограничьте `--rules` и `--max-project-seconds`, изучите `--debug` и охват.
 
 ## Отладочный скрипт — композиция двух библиотек
 

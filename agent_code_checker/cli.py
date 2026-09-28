@@ -49,7 +49,7 @@ def main() -> None:
     evaluate.add_argument("--provider", default="agent-bridge:codex")
     evaluate.add_argument("--agent-url", help="A2A URL for any Agent Bridge profile")
     evaluate.add_argument("--harness-profile", type=Path, help="OpenCode/Claude Code profile for temporary project launch")
-    evaluate.add_argument("--tool-policy", choices=["no_tools", "read_only", "workspace_write"])
+    evaluate.add_argument("--tool-policy", choices=["no_tools", "read_only", "workspace_write", "full_access"])
     evaluate.add_argument("--model")
     evaluate.add_argument("--reasoning-effort")
     evaluate.add_argument("--catalog", type=Path, help="Override the bundled code-smells catalog")
@@ -91,8 +91,8 @@ def main() -> None:
             if target.kind == "project":
                 if args.no_session:
                     raise ValueError("Project evaluation requires one persistent agent session")
-                if args.tool_policy not in {None, "read_only"}:
-                    raise ValueError("Project evaluation requires --tool-policy read_only")
+                if args.tool_policy == "no_tools":
+                    raise ValueError("Project evaluation requires agent tools; no_tools cannot inspect the project")
                 if args.agent_url is not None and args.harness_profile is not None:
                     raise ValueError("--harness-profile cannot be combined with --agent-url")
                 if args.agent_url is None:
@@ -101,7 +101,11 @@ def main() -> None:
                 else:
                     harness = args.provider.strip().lower().removeprefix("agent-bridge:")
                     url = args.agent_url
-                provider_policy = None if harness == "codex" else "read_only"
+                provider_policy = args.tool_policy or (
+                    "full_access" if harness == "antigravity" else "read_only"
+                )
+                if harness == "antigravity" and provider_policy != "full_access":
+                    raise ValueError("Antigravity project evaluation requires full_access")
                 provider = agent_bridge_provider_from_name(
                     args.provider, peer_url=url, tool_policy=provider_policy,
                 )
@@ -109,7 +113,8 @@ def main() -> None:
                     assert target.path is not None
                     launch = HarnessLaunch(
                         name=harness, url=url, workspace=target.path, model=args.model,
-                        profile_path=args.harness_profile, tool_policy="read_only",
+                        profile_path=args.harness_profile, tool_policy=provider_policy,
+                        agy_dangerously_skip_permissions=(harness == "antigravity"),
                     )
                     async with connect_harness(launch):
                         return await EvaluationService(provider).evaluate(
