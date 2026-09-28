@@ -55,7 +55,7 @@ class PortableCliTests(unittest.TestCase):
             main()
 
         self.assertEqual(launches[0].tool_policy, "full_access")
-        self.assertTrue(launches[0].agy_dangerously_skip_permissions)
+        self.assertFalse(launches[0].agy_dangerously_skip_permissions)
         self.assertEqual(provider.call_args.kwargs["tool_policy"], "full_access")
 
     def test_project_allows_explicit_workspace_write_policy(self):

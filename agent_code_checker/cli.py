@@ -114,7 +114,6 @@ def main() -> None:
                     launch = HarnessLaunch(
                         name=harness, url=url, workspace=target.path, model=args.model,
                         profile_path=args.harness_profile, tool_policy=provider_policy,
-                        agy_dangerously_skip_permissions=(harness == "antigravity"),
                     )
                     async with connect_harness(launch):
                         return await EvaluationService(provider).evaluate(
