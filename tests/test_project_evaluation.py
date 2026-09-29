@@ -56,7 +56,7 @@ class ProjectEvaluationTests(unittest.IsolatedAsyncioTestCase):
             profile = load_code_smells_profile(rule_ids=["long_method", "large_class"])
 
             async def handler(_prompt, *_args):
-                await asyncio.sleep(0.1)
+                await asyncio.Event().wait()
                 return "not reached"
 
             provider = SessionFake(handler)

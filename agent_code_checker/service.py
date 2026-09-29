@@ -80,6 +80,7 @@ class EvaluationService:
         })
 
         async def run_batches(executors: dict[str, CheckExecutor]) -> None:
+            budget_exhausted = False
             for number, rules in enumerate(batches, start=1):
                 executor_ids = {rule.executor for rule in rules}
                 if len(executor_ids) != 1:
@@ -105,6 +106,8 @@ class EvaluationService:
                         emit=emit if debug else None,
                     )
                     if deadline is not None:
+                        if budget_exhausted:
+                            raise asyncio.TimeoutError
                         remaining = deadline - monotonic()
                         if remaining <= 0:
                             raise asyncio.TimeoutError
@@ -112,6 +115,7 @@ class EvaluationService:
                     else:
                         batch_results = await executor.execute(request)
                 except asyncio.TimeoutError:
+                    budget_exhausted = True
                     reason = f"Project time budget of {max_project_seconds:g}s exhausted"
                     warnings.append(reason)
                     emit("batch_budget_exhausted", {"batch_id": batch_id, "reason": reason})
