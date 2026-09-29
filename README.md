@@ -7,7 +7,7 @@
 
 [English](README.md) | [Русский](README.ru.md)
 
-**Agent Code Checker** is a Python library and CLI tool for **LLM-first semantic code-smell evaluation**. Unlike traditional AST analyzers, linters, or regex-based checkers, it evaluates code semantics using agentic reasoning via language models. It is strictly **detection-only**: it identifies violations, gathers verified source-code evidence, and computes a deterministic quality score without modifying files, generating patches, or running refactorings.
+**Agent Code Checker** is the first step toward an extensible evaluation platform. The idea is to apply configurable checks to a target and return a clear, structured result backed by evidence.
 
 The library supports three target scopes:
 - **`snippet`**: In-memory code strings with an optional language hint.
