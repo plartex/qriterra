@@ -11,7 +11,7 @@ This guide covers real-time diagnostic tools, event traces, common error message
 When running evaluations from the CLI or Python API, pass `--debug` (or `debug=True`) to stream real-time JSON events to `stderr` and embed the full audit trace into `report.debug_trace`:
 
 ```powershell
-agent-code-checker evaluate file src/service.py --provider agent-bridge:codex --debug
+qriterra evaluate file src/service.py --provider agent-bridge:codex --debug
 ```
 
 ### Event Lifecycle
@@ -43,7 +43,7 @@ agent-code-checker evaluate file src/service.py --provider agent-bridge:codex --
 - **Cause**: Project evaluation was attempted with Google Antigravity without granting `full_access`.
 - **Fix**: The Antigravity CLI does not enforce a read-only filesystem sandbox in headless automation. Pass `--tool-policy full_access`:
   ```powershell
-  agent-code-checker evaluate project path/to/project `
+  qriterra evaluate project path/to/project `
     --provider agent-bridge:antigravity --tool-policy full_access
   ```
 
@@ -65,7 +65,7 @@ agent-code-checker evaluate file src/service.py --provider agent-bridge:codex --
 
 ### 7. `Rule ... cannot pass with partial coverage`
 - **Cause**: The model returned `status: "passed"` while self-reporting `coverage.status: "partial"`.
-- **Explanation**: Agent Code Checker rejects claiming a rule has passed if the project was only partially explored. The validator triggers a repair; if the model fails to correct it, the rule is marked `error`.
+- **Explanation**: Qriterra rejects claiming a rule has passed if the project was only partially explored. The validator triggers a repair; if the model fails to correct it, the rule is marked `error`.
 
 ### 8. `Rule ... evidence excerpt does not match source lines`
 - **Cause**: The model hallucinated code in `excerpt` that does not match the actual text on lines `start_line` to `end_line` of the cited file.

@@ -14,7 +14,7 @@ from .providers import agent_bridge_provider_from_name
 
 
 mcp = FastMCP(
-    "Agent Code Checker",
+    "Qriterra",
     instructions=(
         "Use evaluate to detect code smells in a snippet, file, or project. "
         "Project scans use read-only agent tools. This tool only reports findings; "

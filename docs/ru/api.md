@@ -2,12 +2,12 @@
 
 [English](../api.md) | [Русский](api.md)
 
-В этом документе представлен подробный справочник по публичному Python API библиотеки **Agent Code Checker**.
+В этом документе представлен подробный справочник по публичному Python API библиотеки **Qriterra**.
 
-Все основные классы, модели и вспомогательные функции импортируются напрямую из корневого пакета или подмодуля `agent_code_checker.providers`:
+Все основные классы, модели и вспомогательные функции импортируются напрямую из корневого пакета или подмодуля `qriterra.providers`:
 
 ```python
-from agent_code_checker import (
+from qriterra import (
     EvaluationService,
     EvaluationTarget,
     EvaluationProfile,
@@ -22,7 +22,7 @@ from agent_code_checker import (
     format_text_report,
     CatalogError,
 )
-from agent_code_checker.providers import (
+from qriterra.providers import (
     AgentBridgeProvider,
     agent_bridge_provider_from_name,
     FakeAgentProvider,
@@ -297,13 +297,13 @@ class FakeAgentProvider:
 ```python
 import asyncio
 from pathlib import Path
-from agent_code_checker import (
+from qriterra import (
     EvaluationService,
     EvaluationTarget,
     format_text_report,
     load_code_smells_profile,
 )
-from agent_code_checker.providers import AgentBridgeProvider
+from qriterra.providers import AgentBridgeProvider
 
 async def run_check():
     # 1. Подключение к харнессу Codex

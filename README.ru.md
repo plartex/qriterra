@@ -1,4 +1,4 @@
-# Agent Code Checker
+# Qriterra
 
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![Architecture](https://img.shields.io/badge/architecture-LLM--first-brightgreen.svg)](docs/ru/architecture.md)
@@ -7,7 +7,7 @@
 
 [English](README.md) | [Русский](README.ru.md)
 
-**Agent Code Checker** — первый шаг к расширяемой платформе оценки. Идея проекта — применять к объекту настраиваемые проверки и возвращать понятный структурированный результат, подкреплённый доказательствами.
+**Qriterra** — первый шаг к расширяемой платформе оценки. Идея проекта — применять к объекту настраиваемые проверки и возвращать понятный структурированный результат, подкреплённый доказательствами.
 
 Поддерживаются три типа целей анализа:
 - **`snippet`**: фрагмент кода в оперативной памяти с опциональным указанием языка.
@@ -18,11 +18,11 @@
 
 ## Agent Bridge как отдельная зависимость
 
-Agent Code Checker расположен в самостоятельном Git-репозитории и не содержит собственного кода исполнения моделей. В качестве транспортной зависимости используется библиотека [**Agent Bridge**](../agent-bridge) (`codex-antigravity-a2a-bridge`, разрабатываемая в отдельном локальном репозитории).
+Qriterra расположен в самостоятельном Git-репозитории и не содержит собственного кода исполнения моделей. В качестве транспортной зависимости используется библиотека [**Agent Bridge**](https://gitlab.com/kkaastr/codex-antigravity-a2a-bridge) (`codex-antigravity-a2a-bridge`).
 
 - **Agent Bridge** предоставляет стандартные HTTP-эндпоинты протокола Agent-to-Agent (A2A) для управления локальными харнессами: **Codex**, **Antigravity**, **OpenCode** и **Claude Code**.
-- **Agent Code Checker** оркестрирует проверку: загружает базу из 80 запахов кода, стабильно разбивает правила на пакеты, управляет сессиями агентов, строго валидирует структурированные JSON-ответы, проверяет цитаты по реальным строкам файлов и вычисляет детерминированный балл качества.
-- Agent Bridge ничего не знает о запахах кода, пакетах и оценках; Agent Code Checker не управляет низкоуровневыми подпроцессами CLI и особенностями конкретных харнессов.
+- **Qriterra** оркестрирует проверку: загружает базу из 80 запахов кода, стабильно разбивает правила на пакеты, управляет сессиями агентов, строго валидирует структурированные JSON-ответы, проверяет цитаты по реальным строкам файлов и вычисляет детерминированный балл качества.
+- Agent Bridge ничего не знает о запахах кода, пакетах и оценках; Qriterra не управляет низкоуровневыми подпроцессами CLI и особенностями конкретных харнессов.
 
 ---
 
@@ -37,7 +37,7 @@ Agent Code Checker расположен в самостоятельном Git-р
 python -m venv .venv
 # В Windows:
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install "path/to/agent-bridge" "path/to/agent-code-checker"
+.\.venv\Scripts\python.exe -m pip install "path/to/agent-bridge" "path/to/qriterra"
 ```
 
 В Linux или macOS:
@@ -46,12 +46,15 @@ python -m venv .venv
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install "path/to/agent-bridge" "path/to/agent-code-checker"
+pip install "path/to/agent-bridge" "path/to/qriterra"
 ```
 
 После установки в виртуальном окружении становятся доступны две консольные команды:
-- `agent-code-checker`: консольный интерфейс запуска проверок.
-- `agent-code-checker-mcp`: FastMCP stdio-сервер с инструментом `evaluate`.
+- `qriterra`: консольный интерфейс запуска проверок.
+- `qriterra-mcp`: FastMCP stdio-сервер с инструментом `evaluate`.
+
+Для совместимости сохраняются импорт `agent_code_checker` и команды
+`agent-code-checker` / `agent-code-checker-mcp`.
 
 ---
 
@@ -62,7 +65,7 @@ pip install "path/to/agent-bridge" "path/to/agent-code-checker"
 Передайте код напрямую через CLI, используя локальный или удалённый эндпоинт Agent Bridge:
 
 ```powershell
-agent-code-checker evaluate snippet `
+qriterra evaluate snippet `
   --code "def process(data): return [x * 2 for x in data if x > 0]" `
   --language python `
   --provider agent-bridge:codex `
@@ -75,7 +78,7 @@ agent-code-checker evaluate snippet `
 Содержимое файла встраивается в промпт без предоставления агенту системных инструментов:
 
 ```powershell
-agent-code-checker evaluate file src/service.py `
+qriterra evaluate file src/service.py `
   --provider agent-bridge:opencode `
   --agent-url http://127.0.0.1:8767 `
   --model qwen3.5:9b `
@@ -88,7 +91,7 @@ agent-code-checker evaluate file src/service.py `
 В проектном режиме агент использует инструменты чтения и поиска внутри рабочей области:
 
 ```powershell
-agent-code-checker evaluate project path/to/project `
+qriterra evaluate project path/to/project `
   --provider agent-bridge:codex `
   --rules duplicate_code,cyclic_dependency `
   --max-project-seconds 900 `
@@ -104,7 +107,7 @@ agent-code-checker evaluate project path/to/project `
 ### Консольный интерфейс (CLI)
 
 ```text
-agent-code-checker evaluate <snippet|file|project> [target] [параметры]
+qriterra evaluate <snippet|file|project> [target] [параметры]
 ```
 
 Основные параметры CLI:
@@ -124,13 +127,13 @@ agent-code-checker evaluate <snippet|file|project> [target] [параметры]
 
 ```python
 import asyncio
-from agent_code_checker import (
+from qriterra import (
     EvaluationService,
     EvaluationTarget,
     format_text_report,
     load_code_smells_profile,
 )
-from agent_code_checker.providers import AgentBridgeProvider
+from qriterra.providers import AgentBridgeProvider
 
 async def main():
     # 1. Подключение к серверу Agent Bridge
@@ -158,13 +161,13 @@ if __name__ == "__main__":
 
 ### Model Context Protocol (MCP)
 
-Библиотека предоставляет MCP-сервер (`agent-code-checker-mcp`) с инструментом `evaluate`. Добавьте его в конфигурацию вашего редактора или среды разработки (Claude Desktop, Codex, Cursor):
+Библиотека предоставляет MCP-сервер (`qriterra-mcp`) с инструментом `evaluate`. Добавьте его в конфигурацию вашего редактора или среды разработки (Claude Desktop, Codex, Cursor):
 
 ```json
 {
   "mcpServers": {
-    "agent-code-checker": {
-      "command": "path/to/.venv/Scripts/agent-code-checker-mcp.exe",
+    "qriterra": {
+      "command": "path/to/.venv/Scripts/qriterra-mcp.exe",
       "args": [],
       "env": {
         "BRIDGE_CODEX_URL": "http://127.0.0.1:8765",

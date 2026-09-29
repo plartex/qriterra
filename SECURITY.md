@@ -2,7 +2,7 @@
 
 [English](SECURITY.md) | [Русский](SECURITY.ru.md)
 
-Agent Code Checker is designed to analyze software projects by orchestrating agentic AI models. Because this involves executing LLM prompts and interacting with local filesystems via Agent Bridge, understanding security boundaries and operational risks is essential.
+Qriterra is designed to analyze software projects by orchestrating agentic AI models. Because this involves executing LLM prompts and interacting with local filesystems via Agent Bridge, understanding security boundaries and operational risks is essential.
 
 ---
 
@@ -18,7 +18,7 @@ When evaluating code snippets, files, or repositories, **all target code is trea
 
 ## 2. Tool Policies and Permissions
 
-Agent Code Checker enforces tool policies to restrict what capabilities the underlying agent harness can access:
+Qriterra enforces tool policies to restrict what capabilities the underlying agent harness can access:
 
 | Policy | Capabilities | Intended Scope | Security Implications |
 |---|---|---|---|
@@ -33,13 +33,13 @@ Agent Code Checker enforces tool policies to restrict what capabilities the unde
 > **Antigravity CLI Sandbox Limitations**:
 > The underlying Google Antigravity CLI does not currently enforce a restricted read-only execution sandbox when running in automated headless mode. Consequently, running project evaluations with Antigravity requires `--tool-policy full_access`.
 >
-> Although Agent Code Checker explicitly instructs the agent never to modify files or execute code, **this restriction is enforced solely at the prompt level, not by an operating-system sandbox**. When analyzing untrusted or third-party repositories with Antigravity, run in an isolated environment (such as a disposable virtual machine or container).
+> Although Qriterra explicitly instructs the agent never to modify files or execute code, **this restriction is enforced solely at the prompt level, not by an operating-system sandbox**. When analyzing untrusted or third-party repositories with Antigravity, run in an isolated environment (such as a disposable virtual machine or container).
 
 ---
 
 ## 3. Local A2A Transport Security
 
-Agent Code Checker communicates with Agent Bridge using the Agent-to-Agent (A2A) protocol over HTTP:
+Qriterra communicates with Agent Bridge using the Agent-to-Agent (A2A) protocol over HTTP:
 
 - **Localhost Binding**: Agent Bridge servers are designed to bind exclusively to `127.0.0.1` (loopback).
 - **No Inherent Authentication**: By design, local A2A endpoints do not require authentication tokens or SSL certificates.
@@ -51,7 +51,7 @@ Agent Code Checker communicates with Agent Bridge using the Agent-to-Agent (A2A)
 
 ## 4. Reporting a Security Vulnerability
 
-If you discover a security vulnerability or potential threat in Agent Code Checker:
+If you discover a security vulnerability or potential threat in Qriterra:
 
 - **Do NOT disclose sensitive exploit or vulnerability details publicly** (such as in public issue trackers, forums, or social media).
 - **Host-Provided Private Channel**: Use a private vulnerability reporting mechanism (such as private security advisories or platform-level confidential reporting) only if the eventual repository host enables it.

@@ -2,13 +2,13 @@
 
 [English](architecture.md) | [Русский](ru/architecture.md)
 
-This document details the architectural design, execution pipeline, protocol boundaries, and extension points of **Agent Code Checker**.
+This document details the architectural design, execution pipeline, protocol boundaries, and extension points of **Qriterra**.
 
 ---
 
 ## 1. System Overview
 
-Agent Code Checker is structured as a decoupled evaluation engine that isolates domain logic (smells, scoring, batching) from agent execution transport:
+Qriterra is structured as a decoupled evaluation engine that isolates domain logic (smells, scoring, batching) from agent execution transport:
 
 ```mermaid
 flowchart TD
@@ -99,7 +99,7 @@ sequenceDiagram
 
 ## 3. Extension Points
 
-Agent Code Checker is designed for modular expansion without modifying the core orchestration pipeline.
+Qriterra is designed for modular expansion without modifying the core orchestration pipeline.
 
 ### Extension Point 1: `CheckExecutor` Protocol
 The engine interacts with checks through the abstract `CheckExecutor` protocol:

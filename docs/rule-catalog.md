@@ -2,13 +2,13 @@
 
 [English](rule-catalog.md) | [Русский](ru/rule-catalog.md)
 
-Agent Code Checker comes with a comprehensive knowledge base of **80 code smells**. This document explains the catalog architecture, translation verification, prompt optimization, and how to select or extend rules.
+Qriterra comes with a comprehensive knowledge base of **80 code smells**. This document explains the catalog architecture, translation verification, prompt optimization, and how to select or extend rules.
 
 ---
 
 ## 1. Catalog Architecture and Files
 
-The catalog files are bundled directly into the Python package under `agent_code_checker/profiles/data/`:
+The catalog files are bundled in the compatibility-backed implementation under `agent_code_checker/profiles/data/`:
 
 | File | Purpose |
 |---|---|
@@ -99,7 +99,7 @@ The `--prompt-language` CLI flag and Python parameter control which language is 
 By default, all 80 rules are evaluated. You can restrict the evaluation to specific rule IDs using `--rules`:
 
 ```powershell
-agent-code-checker evaluate file src/orders.py `
+qriterra evaluate file src/orders.py `
   --rules long_method,complex_conditional,primitive_obsession
 ```
 
@@ -119,7 +119,7 @@ If an unknown rule ID is passed, `load_code_smells_profile` raises `CatalogError
 You can point to your own JSON catalog file using `--catalog`:
 
 ```powershell
-agent-code-checker evaluate project path/to/repo `
+qriterra evaluate project path/to/repo `
   --catalog path/to/custom_rules.json `
   --prompt-language ru
 ```

@@ -1,8 +1,8 @@
-# Начало работы с Agent Code Checker
+# Начало работы с Qriterra
 
 [English](../getting-started.md) | [Русский](getting-started.md)
 
-Это руководство поможет вам установить и настроить **Agent Code Checker**, подключить его к **Agent Bridge** и выполнить первые семантические проверки качества кода для сниппетов, отдельных файлов и целых проектов.
+Это руководство поможет вам установить и настроить **Qriterra**, подключить его к **Agent Bridge** и выполнить первые семантические проверки качества кода для сниппетов, отдельных файлов и целых проектов.
 
 ---
 
@@ -11,7 +11,7 @@
 Библиотека требует интерпретатор **Python 3.11** или новее. В качестве зависимостей используются `codex-antigravity-a2a-bridge` (Agent Bridge) для транспорта агентов и `mcp` для запуска MCP-сервера.
 
 > [!NOTE]
-> Репозитории Agent Code Checker и Agent Bridge полностью независимы. Они могут находиться в любых каталогах вашей файловой системы.
+> Репозитории Qriterra и Agent Bridge полностью независимы. Они могут находиться в любых каталогах вашей файловой системы.
 
 ### Создание виртуального окружения
 
@@ -21,7 +21,7 @@
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install "path/to/agent-bridge" "path/to/agent-code-checker"
+.\.venv\Scripts\python.exe -m pip install "path/to/agent-bridge" "path/to/qriterra"
 ```
 
 #### В Linux или macOS:
@@ -29,7 +29,7 @@ python -m venv .venv
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install "path/to/agent-bridge" "path/to/agent-code-checker"
+pip install "path/to/agent-bridge" "path/to/qriterra"
 ```
 
 ### Проверка установки
@@ -37,15 +37,15 @@ pip install "path/to/agent-bridge" "path/to/agent-code-checker"
 Убедитесь, что исполняемые файлы CLI и MCP-сервера доступны:
 
 ```powershell
-.\.venv\Scripts\agent-code-checker.exe --help
-.\.venv\Scripts\agent-code-checker-mcp.exe --help
+.\.venv\Scripts\qriterra.exe --help
+.\.venv\Scripts\qriterra-mcp.exe --help
 ```
 
 ---
 
 ## 2. Подключение к Agent Bridge
 
-Agent Code Checker выполняет роль клиента-оркестратора. Для непосредственного обращения к языковым моделям он взаимодействует с сервером Agent Bridge по локальному HTTP-протоколу Agent-to-Agent (A2A).
+Qriterra выполняет роль клиента-оркестратора. Для непосредственного обращения к языковым моделям он взаимодействует с сервером Agent Bridge по локальному HTTP-протоколу Agent-to-Agent (A2A).
 
 Поддерживаются следующие агентные харнессы:
 - **Codex**: модели OpenAI (`gpt-6-sol` и др.) через Codex CLI или SDK.
@@ -83,7 +83,7 @@ agent-bridge serve profile --profile path/to/opencode.profile.json --workspace .
 Используйте подкоманду `evaluate snippet` для проверки фрагмента логики без сохранения файла на диск:
 
 ```powershell
-agent-code-checker evaluate snippet `
+qriterra evaluate snippet `
   --code "def calculate_discount(price, customer):
     if customer.is_vip:
         if customer.orders_count > 50:
@@ -105,7 +105,7 @@ agent-code-checker evaluate snippet `
 Для отдельного файла содержимое считывается и встраивается в запрос (допустимый размер файла — до 1 МБ):
 
 ```powershell
-agent-code-checker evaluate file src/checkout.py `
+qriterra evaluate file src/checkout.py `
   --provider agent-bridge:opencode `
   --agent-url http://127.0.0.1:8767 `
   --model qwen3.5:9b `
@@ -120,7 +120,7 @@ agent-code-checker evaluate file src/checkout.py `
 В проектном режиме агент получает путь к каталогу и самостоятельно применяет инструменты чтения и поиска для анализа связей между модулями:
 
 ```powershell
-agent-code-checker evaluate project path/to/project `
+qriterra evaluate project path/to/project `
   --provider agent-bridge:codex `
   --rules duplicate_code,cyclic_dependency `
   --max-project-seconds 900 `
@@ -128,7 +128,7 @@ agent-code-checker evaluate project path/to/project `
 ```
 
 > [!TIP]
-> **Автоматический запуск харнесса**: Если параметр `--agent-url` не указан, Agent Code Checker самостоятельно поднимает временный процесс Agent Bridge в целевом каталоге проекта на время проверки и корректно гасит его по завершении.
+> **Автоматический запуск харнесса**: Если параметр `--agent-url` не указан, Qriterra самостоятельно поднимает временный процесс Agent Bridge в целевом каталоге проекта на время проверки и корректно гасит его по завершении.
 
 ---
 
@@ -138,13 +138,13 @@ MCP-сервер позволяет запускать проверки из с�
 
 ### Пример конфигурации
 
-Добавьте блок `agent-code-checker` в файл настроек MCP (например, `claude_desktop_config.json` или `mcp_config.json`):
+Добавьте блок `qriterra` в файл настроек MCP (например, `claude_desktop_config.json` или `mcp_config.json`):
 
 ```json
 {
   "mcpServers": {
-    "agent-code-checker": {
-      "command": "path/to/.venv/Scripts/agent-code-checker-mcp.exe",
+    "qriterra": {
+      "command": "path/to/.venv/Scripts/qriterra-mcp.exe",
       "args": [],
       "env": {
         "BRIDGE_CODEX_URL": "http://127.0.0.1:8765",

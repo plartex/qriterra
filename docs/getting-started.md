@@ -1,17 +1,17 @@
-# Getting Started with Agent Code Checker
+# Getting Started with Qriterra
 
 [English](getting-started.md) | [Русский](ru/getting-started.md)
 
-This guide walks you through setting up **Agent Code Checker**, connecting it to **Agent Bridge**, and running code-quality evaluations across all supported target types: code snippets, single files, and multi-file projects.
+This guide walks you through setting up **Qriterra**, connecting it to **Agent Bridge**, and running code-quality evaluations across all supported target types: code snippets, single files, and multi-file projects.
 
 ---
 
 ## 1. Prerequisites and Installation
 
-Agent Code Checker requires **Python 3.11** or newer. It depends on `codex-antigravity-a2a-bridge` (Agent Bridge) for agent transport and `mcp` for the Model Context Protocol server.
+Qriterra requires **Python 3.11** or newer. It depends on `codex-antigravity-a2a-bridge` (Agent Bridge) for agent transport and `mcp` for the Model Context Protocol server.
 
 > [!NOTE]
-> Agent Code Checker and Agent Bridge reside in separate Git repositories. You can check them out into any directory on your system.
+> Qriterra and Agent Bridge reside in separate Git repositories. You can check them out into any directory on your system.
 
 ### Setting Up a Dedicated Virtual Environment
 
@@ -21,7 +21,7 @@ Create an isolated virtual environment and install both packages from your local
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install "path/to/agent-bridge" "path/to/agent-code-checker"
+.\.venv\Scripts\python.exe -m pip install "path/to/agent-bridge" "path/to/qriterra"
 ```
 
 #### On Linux or macOS:
@@ -29,7 +29,7 @@ python -m venv .venv
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install "path/to/agent-bridge" "path/to/agent-code-checker"
+pip install "path/to/agent-bridge" "path/to/qriterra"
 ```
 
 ### Verifying the Installation
@@ -37,15 +37,15 @@ pip install "path/to/agent-bridge" "path/to/agent-code-checker"
 Verify that the CLI executable and MCP entry points are available:
 
 ```powershell
-.\.venv\Scripts\agent-code-checker.exe --help
-.\.venv\Scripts\agent-code-checker-mcp.exe --help
+.\.venv\Scripts\qriterra.exe --help
+.\.venv\Scripts\qriterra-mcp.exe --help
 ```
 
 ---
 
 ## 2. Connecting to Agent Bridge
 
-Agent Code Checker acts as an orchestration client. To run actual evaluations, it communicates with an Agent Bridge instance via the Agent-to-Agent (A2A) protocol over local HTTP.
+Qriterra acts as an orchestration client. To run actual evaluations, it communicates with an Agent Bridge instance via the Agent-to-Agent (A2A) protocol over local HTTP.
 
 Supported agent harnesses include:
 - **Codex**: OpenAI models (`gpt-6-sol`, etc.) running through Codex CLI or SDK.
@@ -68,7 +68,7 @@ agent-bridge serve antigravity --workspace . --port 8766
 agent-bridge serve profile --profile path/to/opencode.profile.json --workspace . --port 8767
 ```
 
-You can point Agent Code Checker to these instances using `--agent-url` or standard environment variables:
+You can point Qriterra to these instances using `--agent-url` or standard environment variables:
 - `BRIDGE_CODEX_URL=http://127.0.0.1:8765`
 - `BRIDGE_ANTIGRAVITY_URL=http://127.0.0.1:8766`
 - `BRIDGE_OPENCODE_URL=http://127.0.0.1:8767`
@@ -83,7 +83,7 @@ You can point Agent Code Checker to these instances using `--agent-url` or stand
 Use `evaluate snippet` to check code logic directly from the command line or stdin:
 
 ```powershell
-agent-code-checker evaluate snippet `
+qriterra evaluate snippet `
   --code "def calculate_discount(price, customer):
     if customer.is_vip:
         if customer.orders_count > 50:
@@ -102,10 +102,10 @@ The evaluator runs with `tool_policy="no_tools"` in closed-book mode. The LLM re
 
 ### Evaluating a Single File
 
-For single files on disk, Agent Code Checker reads the file contents (up to 1 MB) and embeds them directly into the request:
+For single files on disk, Qriterra reads the file contents (up to 1 MB) and embeds them directly into the request:
 
 ```powershell
-agent-code-checker evaluate file src/checkout.py `
+qriterra evaluate file src/checkout.py `
   --provider agent-bridge:opencode `
   --agent-url http://127.0.0.1:8767 `
   --model qwen3.5:9b `
@@ -120,7 +120,7 @@ Because the file content is embedded into the prompt, the agent cannot and does 
 In project mode, the agent receives the directory path and utilizes read and search tools to explore cross-file relationships:
 
 ```powershell
-agent-code-checker evaluate project path/to/project `
+qriterra evaluate project path/to/project `
   --provider agent-bridge:codex `
   --rules duplicate_code,cyclic_dependency `
   --max-project-seconds 900 `
@@ -128,7 +128,7 @@ agent-code-checker evaluate project path/to/project `
 ```
 
 > [!TIP]
-> **Automatic Temporary Harness**: If you do not provide `--agent-url`, Agent Code Checker automatically spawns a temporary Bridge server scoped to the project directory for the duration of the scan and shuts it down upon completion.
+> **Automatic Temporary Harness**: If you do not provide `--agent-url`, Qriterra automatically spawns a temporary Bridge server scoped to the project directory for the duration of the scan and shuts it down upon completion.
 
 ---
 
@@ -138,13 +138,13 @@ The MCP server allows AI assistants in editors like Claude Desktop, Cursor, or P
 
 ### Configuration Example
 
-Add the `agent-code-checker` entry to your MCP settings file (e.g., `claude_desktop_config.json` or `mcp_config.json`):
+Add the `qriterra` entry to your MCP settings file (e.g., `claude_desktop_config.json` or `mcp_config.json`):
 
 ```json
 {
   "mcpServers": {
-    "agent-code-checker": {
-      "command": "path/to/.venv/Scripts/agent-code-checker-mcp.exe",
+    "qriterra": {
+      "command": "path/to/.venv/Scripts/qriterra-mcp.exe",
       "args": [],
       "env": {
         "BRIDGE_CODEX_URL": "http://127.0.0.1:8765",

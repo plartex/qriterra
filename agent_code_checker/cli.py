@@ -31,7 +31,7 @@ def _project_harness(provider_name: str) -> tuple[str, int, str]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="agent-code-checker")
+    parser = argparse.ArgumentParser(prog="qriterra")
     sub = parser.add_subparsers(dest="command", required=True)
     evaluate = sub.add_parser("evaluate", help="Run an LLM-first code-quality evaluation")
     evaluate.add_argument("target_type", choices=["snippet", "file", "project"])

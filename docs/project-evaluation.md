@@ -2,7 +2,7 @@
 
 [English](project-evaluation.md) | [Русский](ru/project-evaluation.md)
 
-Project evaluation (`EvaluationTarget.project`) is designed to inspect an entire codebase repository directory. Rather than relying on simple text inlining or static syntax trees, Agent Code Checker grants an AI agent interactive search and reading tools within an isolated session to uncover complex, cross-module code smells.
+Project evaluation (`EvaluationTarget.project`) is designed to inspect an entire codebase repository directory. Rather than relying on simple text inlining or static syntax trees, Qriterra grants an AI agent interactive search and reading tools within an isolated session to uncover complex, cross-module code smells.
 
 ---
 
@@ -20,7 +20,7 @@ Project evaluation (`EvaluationTarget.project`) is designed to inspect an entire
 
 ## 2. Agent Exploration and Semantic Judgment
 
-Traditional linters and copy-paste detectors (such as CPD or AST diffing) rely on lexical or syntactic token identity. In contrast, Agent Code Checker performs **LLM-first semantic investigation**:
+Traditional linters and copy-paste detectors (such as CPD or AST diffing) rely on lexical or syntactic token identity. In contrast, Qriterra performs **LLM-first semantic investigation**:
 
 1. **Tool-Assisted Exploration**: The agent receives the root directory path and rule definitions. It executes read and search tools (e.g. grep, file outline, file read) to trace module boundaries, inheritance trees, and data flows.
 2. **Semantic Understanding**: The agent identifies problems that syntax trees miss, such as:
@@ -81,7 +81,7 @@ In single-file evaluations (Schema 1.0), each violation points to an isolated fi
 
 ### Strict Source Excerpt Verification
 
-To eliminate LLM hallucinations, Agent Code Checker's response validator verifies every citation:
+To eliminate LLM hallucinations, Qriterra's response validator verifies every citation:
 - `path` must resolve to an existing file strictly inside the project root (symlinks escaping the root are rejected).
 - `start_line` and `end_line` must be within valid file boundaries.
 - **`excerpt` must physically match** the actual lines of code read from disk on lines `[start_line, end_line]`. If the model invents code that does not exist at that location, the response is rejected and sent for retry repair.
@@ -115,7 +115,7 @@ Project evaluations require continuous interaction with the codebase:
    - All rule batches are evaluated within this conversation, allowing the model to leverage its mental map of the codebase.
    - `--no-session` is explicitly forbidden for project targets and raises an immediate `ValueError`.
 2. **Workspace Verification**:
-   - Before any model calls occur, Agent Code Checker queries the Bridge server's identity. If the server's working directory does not match the canonical target project path, execution terminates immediately.
+   - Before any model calls occur, Qriterra queries the Bridge server's identity. If the server's working directory does not match the canonical target project path, execution terminates immediately.
 3. **Time Budget (`--max-project-seconds`)**:
    - Default: `1800` seconds (30 minutes).
    - If the monotonic runtime exceeds this limit during a batch, that batch and all subsequent batches terminate immediately.
@@ -139,7 +139,7 @@ Full project scans explore extensive file contexts and consume substantial token
 ### Best Practices for Project Scans:
 1. **Target Specific Rules**: Use `--rules` to focus on architectural or multi-file smells:
    ```powershell
-   agent-code-checker evaluate project path/to/project `
+   qriterra evaluate project path/to/project `
      --rules duplicate_code,cyclic_dependency,shotgun_surgery `
      --max-project-seconds 600
    ```

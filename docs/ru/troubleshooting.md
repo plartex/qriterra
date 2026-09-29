@@ -11,7 +11,7 @@
 При запуске через CLI или Python API флаг `--debug` (или аргумент `debug=True`) включает потоковый вывод JSON-событий в `stderr` и сохраняет полную историю в поле `report.debug_trace`:
 
 ```powershell
-agent-code-checker evaluate file src/service.py --provider agent-bridge:codex --debug
+qriterra evaluate file src/service.py --provider agent-bridge:codex --debug
 ```
 
 ### События жизненного цикла
@@ -43,7 +43,7 @@ agent-code-checker evaluate file src/service.py --provider agent-bridge:codex --
 - **Причина**: Попытка проверки проекта через Google Antigravity без флага `full_access`.
 - **Решение**: Antigravity CLI не поддерживает песочницу `read_only` при headless-запуске. Укажите `--tool-policy full_access`:
   ```powershell
-  agent-code-checker evaluate project path/to/project `
+  qriterra evaluate project path/to/project `
     --provider agent-bridge:antigravity --tool-policy full_access
   ```
 

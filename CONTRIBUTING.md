@@ -1,8 +1,8 @@
-# Contributing to Agent Code Checker
+# Contributing to Qriterra
 
 [English](CONTRIBUTING.md) | [Русский](CONTRIBUTING.ru.md)
 
-Thank you for your interest in contributing to **Agent Code Checker**. This project adheres to test-driven development (TDD), comprehensive offline testing, and strict bilingual documentation parity.
+Thank you for your interest in contributing to **Qriterra**. This project adheres to test-driven development (TDD), comprehensive offline testing, and strict bilingual documentation parity.
 
 ---
 
@@ -15,7 +15,7 @@ Thank you for your interest in contributing to **Agent Code Checker**. This proj
    - The primary test suite must run completely offline without accessing live LLM endpoints, consuming API quotas, or requiring network credentials.
    - Use `FakeAgentProvider` to simulate agent completions, errors, and session interactions.
 3. **Decoupled Architecture**:
-   - Agent Code Checker must remain independent of Agent Bridge internals. Agent Bridge is strictly an A2A transport client dependency.
+   - Qriterra must remain independent of Agent Bridge internals. Agent Bridge is strictly an A2A transport client dependency.
    - Do not commit changes to the Agent Bridge repository from this workspace.
 4. **Bilingual Parity**:
    - English is canonical; Russian is a semantically faithful counterpart.
@@ -72,7 +72,7 @@ You can run manual live checks using the standalone script in `examples/debug_ha
 Before submitting changes:
 - Verify that all relative Markdown links in `README.md`, `README.ru.md`, and `docs/` point to valid existing files.
 - Ensure all example commands use portable relative paths (avoid hardcoded user directories like `C:\Users\...` or `D:\...`).
-- Verify that signatures and flags in documentation match `agent_code_checker/cli.py` and `agent_code_checker/mcp_server.py`.
+- Verify that signatures and flags in documentation match `agent_code_checker/cli.py` and `agent_code_checker/mcp_server.py`; `qriterra/` provides the public compatibility facade.
 
 ---
 

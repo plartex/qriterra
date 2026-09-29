@@ -1,4 +1,4 @@
-# Agent Code Checker
+# Qriterra
 
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![Architecture](https://img.shields.io/badge/architecture-LLM--first-brightgreen.svg)](docs/architecture.md)
@@ -7,7 +7,7 @@
 
 [English](README.md) | [Русский](README.ru.md)
 
-**Agent Code Checker** is the first step toward an extensible evaluation platform. The idea is to apply configurable checks to a target and return a clear, structured result backed by evidence.
+**Qriterra** is the first step toward an extensible evaluation platform. The idea is to apply configurable checks to a target and return a clear, structured result backed by evidence.
 
 The library supports three target scopes:
 - **`snippet`**: In-memory code strings with an optional language hint.
@@ -18,11 +18,11 @@ The library supports three target scopes:
 
 ## Agent Bridge as a Dependency
 
-Agent Code Checker is housed in an independent Git repository and does not contain agent execution harnesses. Instead, it relies on [**Agent Bridge**](../agent-bridge) (`codex-antigravity-a2a-bridge`, maintained as a separate local checkout) as a separate transport dependency.
+Qriterra is housed in an independent Git repository and does not contain agent execution harnesses. Instead, it relies on [**Agent Bridge**](https://gitlab.com/kkaastr/codex-antigravity-a2a-bridge) (`codex-antigravity-a2a-bridge`) as a separate transport dependency.
 
 - **Agent Bridge** exposes standard Agent-to-Agent (A2A) HTTP endpoints to run underlying coding assistants: **Codex**, **Antigravity**, **OpenCode**, and **Claude Code**.
-- **Agent Code Checker** orchestrates the evaluation: it loads the 80-rule smell catalog, plans stable rule batches, manages agent sessions, validates strict structured JSON responses, verifies citations against real source lines, and calculates deterministic scores.
-- Agent Bridge knows nothing about code smells, batching, or scoring; Agent Code Checker knows nothing about CLI subprocesses or provider-specific harness internals.
+- **Qriterra** orchestrates the evaluation: it loads the 80-rule smell catalog, plans stable rule batches, manages agent sessions, validates strict structured JSON responses, verifies citations against real source lines, and calculates deterministic scores.
+- Agent Bridge knows nothing about code smells, batching, or scoring; Qriterra knows nothing about CLI subprocesses or provider-specific harness internals.
 
 ---
 
@@ -37,7 +37,7 @@ Create a virtual environment (Python 3.11 or newer) and install both packages fr
 python -m venv .venv
 # On Windows:
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install "path/to/agent-bridge" "path/to/agent-code-checker"
+.\.venv\Scripts\python.exe -m pip install "path/to/agent-bridge" "path/to/qriterra"
 ```
 
 On Linux or macOS:
@@ -46,12 +46,15 @@ On Linux or macOS:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install "path/to/agent-bridge" "path/to/agent-code-checker"
+pip install "path/to/agent-bridge" "path/to/qriterra"
 ```
 
 Once installed, two console entry points become available in your virtual environment:
-- `agent-code-checker`: Command-line evaluation interface.
-- `agent-code-checker-mcp`: FastMCP stdio server providing the `evaluate` tool.
+- `qriterra`: Command-line evaluation interface.
+- `qriterra-mcp`: FastMCP stdio server providing the `evaluate` tool.
+
+Existing integrations can continue to use the `agent_code_checker` import and the
+`agent-code-checker` / `agent-code-checker-mcp` commands as compatibility aliases.
 
 ---
 
@@ -62,7 +65,7 @@ Once installed, two console entry points become available in your virtual enviro
 Pass code directly on the CLI using a local or remote Agent Bridge endpoint:
 
 ```powershell
-agent-code-checker evaluate snippet `
+qriterra evaluate snippet `
   --code "def process(data): return [x * 2 for x in data if x > 0]" `
   --language python `
   --provider agent-bridge:codex `
@@ -75,7 +78,7 @@ agent-code-checker evaluate snippet `
 Single files are inlined into a closed-book, tool-free prompt:
 
 ```powershell
-agent-code-checker evaluate file src/service.py `
+qriterra evaluate file src/service.py `
   --provider agent-bridge:opencode `
   --agent-url http://127.0.0.1:8767 `
   --model qwen3.5:9b `
@@ -88,7 +91,7 @@ agent-code-checker evaluate file src/service.py `
 In project mode, the harness uses search and read tools within the workspace:
 
 ```powershell
-agent-code-checker evaluate project path/to/project `
+qriterra evaluate project path/to/project `
   --provider agent-bridge:codex `
   --rules duplicate_code,cyclic_dependency `
   --max-project-seconds 900 `
@@ -104,7 +107,7 @@ If `--agent-url` is omitted for built-in harnesses (`codex`, `antigravity`, `ope
 ### Command Line Interface (CLI)
 
 ```text
-agent-code-checker evaluate <snippet|file|project> [target] [options]
+qriterra evaluate <snippet|file|project> [target] [options]
 ```
 
 Key CLI options:
@@ -124,13 +127,13 @@ Key CLI options:
 
 ```python
 import asyncio
-from agent_code_checker import (
+from qriterra import (
     EvaluationService,
     EvaluationTarget,
     format_text_report,
     load_code_smells_profile,
 )
-from agent_code_checker.providers import AgentBridgeProvider
+from qriterra.providers import AgentBridgeProvider
 
 async def main():
     # 1. Connect to an Agent Bridge instance
@@ -158,13 +161,13 @@ if __name__ == "__main__":
 
 ### Model Context Protocol (MCP)
 
-Agent Code Checker provides an MCP server (`agent-code-checker-mcp`) exposing the unified `evaluate` tool. Configure it in your editor or IDE (e.g., Claude Desktop, Codex, Cursor):
+Qriterra provides an MCP server (`qriterra-mcp`) exposing the unified `evaluate` tool. Configure it in your editor or IDE (e.g., Claude Desktop, Codex, Cursor):
 
 ```json
 {
   "mcpServers": {
-    "agent-code-checker": {
-      "command": "path/to/.venv/Scripts/agent-code-checker-mcp.exe",
+    "qriterra": {
+      "command": "path/to/.venv/Scripts/qriterra-mcp.exe",
       "args": [],
       "env": {
         "BRIDGE_CODEX_URL": "http://127.0.0.1:8765",

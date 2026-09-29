@@ -2,13 +2,13 @@
 
 [English](../rule-catalog.md) | [Русский](rule-catalog.md)
 
-В состав Agent Code Checker входит структурированная база знаний из **80 запахов кода**. Этот документ описывает структуру каталога, механизмы проверки двуязычного паритета, оптимизацию промптов и способы фильтрации или расширения базы правил.
+В состав Qriterra входит структурированная база знаний из **80 запахов кода**. Этот документ описывает структуру каталога, механизмы проверки двуязычного паритета, оптимизацию промптов и способы фильтрации или расширения базы правил.
 
 ---
 
 ## 1. Файлы и структура каталога
 
-Файлы базы правил упакованы непосредственно в состав Python-пакета в каталоге `agent_code_checker/profiles/data/`:
+Файлы базы правил упакованы в каталог реализации, сохраняемой для совместимости: `agent_code_checker/profiles/data/`:
 
 | Файл | Назначение |
 |---|---|
@@ -99,7 +99,7 @@
 По умолчанию чекер оценивает все 80 правил. С помощью флага `--rules` можно ограничить проверку списком идентификаторов:
 
 ```powershell
-agent-code-checker evaluate file src/orders.py `
+qriterra evaluate file src/orders.py `
   --rules long_method,complex_conditional,primitive_obsession
 ```
 
@@ -119,7 +119,7 @@ profile = load_code_smells_profile(
 Вы можете подключить свой JSON-файл базы правил через параметр `--catalog`:
 
 ```powershell
-agent-code-checker evaluate project path/to/repo `
+qriterra evaluate project path/to/repo `
   --catalog path/to/custom_rules.json `
   --prompt-language ru
 ```
