@@ -1,169 +1,244 @@
 # Agent Code Checker
 
-Отдельная библиотека для LLM-проверок качества кода. Agent Bridge
-— транспортная зависимость: он запускает агентные харнессы через A2A,
-но не хранит правила запахов, не формирует оценки и не знает о чекере.
+[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+[![Architecture](https://img.shields.io/badge/architecture-LLM--first-brightgreen.svg)](docs/architecture.md)
+[![Rule Catalog](https://img.shields.io/badge/rules-80%20smells-orange.svg)](docs/rule-catalog.md)
+[![Language](https://img.shields.io/badge/docs-English%20%7C%20Русский-lightgrey.svg)](README.ru.md)
 
-Сейчас профиль `code_smells` содержит 80 правил. Чекер принимает сниппет, файл
-или проект, группирует правила в пакеты, проверяет структурированный ответ
-агента, собирает доказательства и рассчитывает оценку. Он только выявляет
-проблемы и не изменяет код.
+[English](README.md) | [Русский](README.ru.md)
 
-## Установка в любом проекте
+**Agent Code Checker** is a Python library and CLI tool for **LLM-first semantic code-smell evaluation**. Unlike traditional AST analyzers, linters, or regex-based checkers, it evaluates code semantics using agentic reasoning via language models. It is strictly **detection-only**: it identifies violations, gathers verified source-code evidence, and computes a deterministic quality score without modifying files, generating patches, or running refactorings.
 
-Создайте окружение в своём проекте и установите обе библиотеки в него. Их исходные репозитории могут находиться где угодно; при запуске после установки они не нужны:
+The library supports three target scopes:
+- **`snippet`**: In-memory code strings with an optional language hint.
+- **`file`**: Single files on disk (inlined up to 1 MB for tool-free, closed-book inspection).
+- **`project`**: Multi-file repository directories investigated interactively by agentic harnesses using search and file-reading tools.
+
+---
+
+## Agent Bridge as a Dependency
+
+Agent Code Checker is housed in an independent Git repository and does not contain agent execution harnesses. Instead, it relies on [**Agent Bridge**](https://github.com/example/agent-bridge) (`codex-antigravity-a2a-bridge`) as a separate transport dependency.
+
+- **Agent Bridge** exposes standard Agent-to-Agent (A2A) HTTP endpoints to run underlying coding assistants: **Codex**, **Antigravity**, **OpenCode**, and **Claude Code**.
+- **Agent Code Checker** orchestrates the evaluation: it loads the 80-rule smell catalog, plans stable rule batches, manages agent sessions, validates strict structured JSON responses, verifies citations against real source lines, and calculates deterministic scores.
+- Agent Bridge knows nothing about code smells, batching, or scoring; Agent Code Checker knows nothing about CLI subprocesses or provider-specific harness internals.
+
+---
+
+## Installation
+
+> [!NOTE]
+> This package is prepared for PyPI and GitHub distribution, but is currently installed from local Git checkouts or source directories.
+
+Create a virtual environment (Python 3.11 or newer) and install both packages from local checkouts:
 
 ```powershell
 python -m venv .venv
-$bridgeSource = 'C:\path\to\agent-bridge'
-$checkerSource = 'C:\path\to\agent-code-checker'
-& .\.venv\Scripts\python.exe -m pip install $bridgeSource $checkerSource
+# On Windows:
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install "path/to/agent-bridge" "path/to/agent-code-checker"
 ```
 
-В PyCharm выберите тот же `ваш-проект\.venv\Scripts\python.exe` как Project Interpreter. Если будете устанавливать опубликованные пакеты из индекса, достаточно `pip install agent-code-checker`: пакет объявляет Agent Bridge обычной зависимостью.
+On Linux or macOS:
 
-Серверы запускаются из окружения проекта и получают его каталог через `--workspace`:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install "path/to/agent-bridge" "path/to/agent-code-checker"
+```
+
+Once installed, two console entry points become available in your virtual environment:
+- `agent-code-checker`: Command-line evaluation interface.
+- `agent-code-checker-mcp`: FastMCP stdio server providing the `evaluate` tool.
+
+---
+
+## Quickstart
+
+### 1. Evaluate a Code Snippet
+
+Pass code directly on the CLI using a local or remote Agent Bridge endpoint:
 
 ```powershell
-& .\.venv\Scripts\agent-bridge.exe serve codex --workspace . --port 8765
-# В другом терминале:
-& .\.venv\Scripts\agent-bridge.exe serve antigravity --workspace . --port 8766
+agent-code-checker evaluate snippet `
+  --code "def process(data): return [x * 2 for x in data if x > 0]" `
+  --language python `
+  --provider agent-bridge:codex `
+  --agent-url http://127.0.0.1:8765 `
+  --rules long_method,complex_conditional
 ```
 
-Для OpenCode и Claude Code создайте JSON-профили по примерам в Agent Bridge и запустите `serve profile --profile <путь> --workspace . --port <порт>`. Рабочая папка берётся из `--workspace`; профиль не обязан находиться в проекте.
+### 2. Evaluate a Single File
 
-## CLI
+Single files are inlined into a closed-book, tool-free prompt:
 
 ```powershell
-& .\.venv\Scripts\agent-code-checker.exe evaluate file .\src\service.py `
-  --provider agent-bridge:opencode-local --agent-url http://127.0.0.1:8767 `
-  --tool-policy no_tools --model qwen3.5:9b --rules long_method,large_class `
-  --debug --json --output service.report.json
+agent-code-checker evaluate file src/service.py `
+  --provider agent-bridge:opencode `
+  --agent-url http://127.0.0.1:8767 `
+  --model qwen3.5:9b `
+  --rules long_method,large_class `
+  --json --output service.report.json
 ```
 
-Для Codex используйте `--provider agent-bridge:codex --agent-url http://127.0.0.1:8765 --model gpt-6-sol`. Для Antigravity передайте его URL и доступный model ID. Старые переменные `BRIDGE_CODEX_URL` и `BRIDGE_ANTIGRAVITY_URL` также поддерживаются. MCP-инструмент `evaluate` принимает те же `provider`, `agent_url` и `tool_policy`.
-Сниппет передаётся как `evaluate snippet --code '...' --language python`.
-Отдельные правила выбираются флагом `--rules long_method,duplicate_code`.
+### 3. Evaluate a Project Directory
 
-Для агентной проверки всего проекта Bridge запускается временно в каталоге
-цели, если `--agent-url` не указан:
+In project mode, the harness uses search and read tools within the workspace:
 
 ```powershell
-& .\.venv\Scripts\agent-code-checker.exe evaluate project 'D:\path\to\repo' `
-  --provider agent-bridge:codex --model gpt-6-sol `
-  --rules duplicate_code,cyclic_dependency --max-project-seconds 900 `
-  --debug --json --output project.code-quality.json
+agent-code-checker evaluate project path/to/project `
+  --provider agent-bridge:codex `
+  --rules duplicate_code,cyclic_dependency `
+  --max-project-seconds 900 `
+  --debug
 ```
 
-Та же проверка через временный Antigravity Bridge:
+If `--agent-url` is omitted for built-in harnesses (`codex`, `antigravity`, `opencode`, `claude_code`), the CLI temporarily launches an Agent Bridge instance scoped to the target project directory.
 
-```powershell
-& .\.venv\Scripts\agent-code-checker.exe evaluate project 'D:\path\to\repo' `
-  --provider agent-bridge:antigravity --tool-policy full_access `
-  --rules duplicate_code,cyclic_dependency --max-project-seconds 900 `
-  --debug --json --output project.antigravity.code-quality.json
+---
+
+## Usage Modes
+
+### Command Line Interface (CLI)
+
+```text
+agent-code-checker evaluate <snippet|file|project> [target] [options]
 ```
 
-Проектный режим открывает одну сессию даже для одного пакета правил.
-Агент сам читает и ищет файлы, решает семантические вопросы; чекер не запускает
-AST/CPD-детектор. Существующий Bridge можно указать через `--agent-url`, но он
-должен сообщить точно тот же workspace.
-Для временного OpenCode/Claude Code укажите `--provider agent-bridge:opencode`
-или `agent-bridge:claude_code`, модель и, если требуется, `--harness-profile`.
-По умолчанию Codex, OpenCode и Claude Code получают `read_only`; Antigravity
-автоматически запускается с `full_access`, поскольку его CLI не гарантирует
-`read_only` в headless-режиме. Для всех харнессов можно явно передать
-`--tool-policy full_access` или `workspace_write` (кроме Antigravity, которому
-для проектного режима нужен `full_access`). Для OpenCode/Claude Code пользовательский
-профиль должен разрешать выбранный уровень через `max_tool_policy`. Чекер
-по-прежнему только выявляет проблемы и просит агента не менять файлы, однако
-при `full_access` это требование в промпте, а не техническая гарантия.
-Контрольный live-прогон Antigravity на двух файлах и одном правиле
-`duplicate_code` завершился за 173,5 секунды и сообщил 205 154 токена суммарно;
-стоимость полного проекта может быть значительно выше. Для первых запусков
-ограничьте `--rules` и `--max-project-seconds`, изучите `--debug` и охват.
+Key CLI options:
+- `--rules <id1,id2>`: Comma-separated rule IDs (defaults to all 80 profile rules).
+- `--batch-size <N>`: Rules evaluated per turn (default: `10`).
+- `--model <name>`: Model ID override (e.g. `gpt-6-sol`, `gemini-3.8-flash-medium`, `qwen3.5:9b`).
+- `--reasoning-effort <effort>`: Reasoning depth (`low`, `medium`, `high`).
+- `--tool-policy <policy>`: Execution sandbox permissions (`no_tools`, `read_only`, `workspace_write`, `full_access`).
+- `--prompt-language <auto|en|ru>`: Language for LLM prompts (`auto` selects English for the bundled catalog).
+- `--max-project-seconds <sec>`: Time budget for project analysis (default: `1800`).
+- `--no-session`: Force independent requests per batch (disallowed for `project` evaluations).
+- `--json`: Output full structured JSON report instead of formatted plain text.
+- `--debug`: Stream real-time batch traces to `stderr` and include `debug_trace` in the report.
+- `--output <path>`: Write the resulting report directly to disk.
 
-## Отладочный скрипт — композиция двух библиотек
-
-[Скрипт для PyCharm](examples/debug_harnesses.py) запускается кнопкой Run без параметров. Все прикладные вызовы теперь находятся в нём: `discover_harnesses()` находит харнессы, `connect_harness()` временно поднимает Bridge при необходимости, `BridgeClient.info()` читает модели и лимиты, `BridgeClient.ask()` просит стих, а `EvaluationService.evaluate()` проверяет code smells через `AgentBridgeProvider`. В библиотеках нет кода, который выбирает стих, файл `rls.py` или порядок этих шагов.
-
-Выберите интерпретатор `agent-code-checker/.venv/Scripts/python.exe`. В начале скрипта доступны `TARGET`, `AGENTS`, `RULES`, `MODELS`, `COMMANDS`, `URLS`, `PROFILES`. Текущее `RULES = None` — сохранённый выбор для всех 80 правил; такой прогон может потратить значительную квоту. Для короткой проверки поставьте `RULES = "long_method,large_class"`. Отчёты и логи находятся в `examples/debug-runs/`.
-
-Из PowerShell можно запустить тот же скрипт с переопределениями:
-
-```powershell
-& .\.venv\Scripts\python.exe .\examples\debug_harnesses.py --part agents
-& .\.venv\Scripts\python.exe .\examples\debug_harnesses.py --part smells --target .\src\service.py --rules long_method,large_class
-```
-
-`--agents auto` выбирает найденные харнессы; `--agents codex,opencode` ограничивает список. Для локальных OpenCode и Claude Code создаётся временный профиль Ollama с `qwen3.5:9b`; Ollama и модель должны быть доступны. Команду можно указать через `COMMANDS` или `--agy-command`/`--opencode-command`/`--claude-command`; уже работающий сервер — через `URLS` или соответствующий `--*-url`. Явно заданный URL не запускается автоматически. Для другого поставщика модели передайте JSON-профиль через `PROFILES` или `--opencode-profile`/`--claude-profile` и нужный ID модели. `--no-auto-start` запрещает временные серверы; `--no-session` делает отдельный запрос на каждый пакет правил.
-
-Отдельной команды `agent-code-checker-debug` больше нет: это прикладной сценарий, а не функция библиотеки. Каждый прогон сохраняет `summary.json` и отдельные `*.code-smells.json`; трасса также печатается в stderr. Локальная Ollama не предоставляет квоты аккаунта через этот профиль (`usage.available=false`).
-
-Для встроенного каталога по умолчанию используется полный английский перевод
-`agent_code_checker/profiles/data/code_smells.en.json`. Он сохраняет все поля,
-порядок правил, метрики и примеры русского `code_smells.min.json`; программный
-код примеров оставлен дословно, чтобы перевод не менял их поведение. SHA-256
-русского источника хранится рядом в `code_smells.en.sha256`, и загрузчик
-отклоняет устаревший или структурно неполный перевод. Агенту передаются
-английские определение, симптомы и метрики обнаружения, без потери численных
-порогов. Причины, последствия, техники рефакторинга и примеры сохранены в
-зеркальном каталоге, но не включаются в каждый промпт ради ограничения токенов.
-`--prompt-language ru` использует исходные русские формулировки; внешний
-`--catalog` в режиме `auto` использует собственный язык.
-
-Прежние измерения расхода токенов для краткого английского профиля больше не
-характеризуют полный перевод: промпты станут длиннее. Сравнивайте точность и
-`--debug` usage на своей модели и проекте.
-
-`--debug` немедленно печатает в stderr начало и конец каждого пакета, ожидание,
-размер запроса, статусы, длительность и предоставленные провайдером токены.
-Трасса также попадает в JSON-поле `debug_trace`. Токены Antigravity CLI и
-Codex передаются через Bridge по каждому вызову.
-
-При нескольких пакетах чекер по умолчанию открывает одну изолированную сессию
-Agent Bridge на проверку и закрывает её в конце. Код и общие ограничения
-передаются в первом запросе; следующие запросы содержат только новые правила.
-В `--debug` видны `session_opened`/`session_closed` и usage каждого хода.
-`--no-session` возвращает независимые запросы с полным кодом в каждом пакете
-для сравнения или обхода проблем сессии; в Python это `use_session=False`,
-в MCP — `use_session=false`. Модель и reasoning effort закреплены за сессией.
-Кеширование у провайдера не гарантировано; длинная история разговора также
-может увеличить входной контекст, поэтому оценивайте реальное usage.
-
-Файл до 1 МБ встраивается в первый пакет сессии (или в каждый пакет при
-`--no-session`). Проектная проверка вместо встраивания кода разрешает агенту
-инструменты чтения и поиска в отдельной сессии. `--no-session` для проекта
-запрещён. Проектный отчёт использует схему 2.0: одна находка может содержать
-несколько связанных локаций. Охват декларируется агентом и не является
-независимым доказательством полного обхода; при частичном охвате оценка
-качества не рассчитывается. Лимит времени задаётся `--max-project-seconds`.
-
-## Python и MCP
+### Python API
 
 ```python
-from agent_code_checker import EvaluationService, EvaluationTarget, load_code_smells_profile
+import asyncio
+from agent_code_checker import (
+    EvaluationService,
+    EvaluationTarget,
+    format_text_report,
+    load_code_smells_profile,
+)
 from agent_code_checker.providers import AgentBridgeProvider
 
-provider = AgentBridgeProvider('http://127.0.0.1:8767', 'opencode-local', tool_policy='no_tools')
-report = await EvaluationService(provider).evaluate(
-    EvaluationTarget.file('src/service.py'),
-    load_code_smells_profile(),
-    debug=True,
-)
-print(report.to_json())
+async def main():
+    # 1. Connect to an Agent Bridge instance
+    provider = AgentBridgeProvider(
+        peer_url="http://127.0.0.1:8765",
+        agent="codex",
+        tool_policy="read_only",
+    )
+
+    # 2. Select rules and target
+    profile = load_code_smells_profile(rule_ids=["long_method", "large_class"])
+    target = EvaluationTarget.file("src/service.py")
+
+    # 3. Execute evaluation
+    service = EvaluationService(provider)
+    report = await service.evaluate(target, profile, debug=True)
+
+    # 4. Render results
+    print(format_text_report(report))
+    print(f"Quality Score: {report.summary.quality_score}%")
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-MCP-сервер чекера запускается из установленного окружения командой
-`agent-code-checker-mcp`. Его инструмент `evaluate` не входит в MCP-сервер
-Agent Bridge. Укажите путь к этой команде в конфигурации MCP своего проекта;
-`Configure-Mcp.ps1` в исходном репозитории — лишь удобный скрипт настройки.
+### Model Context Protocol (MCP)
 
-## Тесты
+Agent Code Checker provides an MCP server (`agent-code-checker-mcp`) exposing the unified `evaluate` tool. Configure it in your editor or IDE (e.g., Claude Desktop, Codex, Cursor):
+
+```json
+{
+  "mcpServers": {
+    "agent-code-checker": {
+      "command": "path/to/.venv/Scripts/agent-code-checker-mcp.exe",
+      "args": [],
+      "env": {
+        "BRIDGE_CODEX_URL": "http://127.0.0.1:8765",
+        "BRIDGE_ANTIGRAVITY_URL": "http://127.0.0.1:8766"
+      }
+    }
+  }
+}
+```
+
+---
+
+## Workspace, Permissions, and Safety
+
+| Target Scope | Execution Environment | Permitted Tool Policies |
+|---|---|---|
+| `snippet` | In-memory text | `no_tools` (default) |
+| `file` | Inlined text (< 1 MB) | `no_tools` (default) |
+| `project` | Multi-file directory | `read_only` (default for Codex, OpenCode, Claude Code), `workspace_write`, `full_access` (mandatory for Antigravity) |
+
+> [!WARNING]
+> **Antigravity and `full_access`**: The Antigravity CLI does not enforce a read-only filesystem sandbox in headless automation. Therefore, temporary project launches with Antigravity automatically use `full_access`. The evaluator explicitly prompts the agent not to modify files, but this restriction is enforced at the prompt level, not by an OS sandbox.
+
+> [!IMPORTANT]
+> **Local A2A Security**: Agent Bridge endpoints communicate via unauthenticated HTTP on `127.0.0.1`. Never expose these ports to public networks. Inspected code is always treated as untrusted data to mitigate prompt-injection attempts.
+
+---
+
+## Quality Score and Evaluation Outcomes
+
+Each evaluated rule receives exactly one of five outcomes:
+- **`passed`**: Rule checked; smell was not detected.
+- **`failed`**: Violation confirmed with verifiable source-code excerpts and line numbers.
+- **`skipped`**: Incompatible target scope (e.g., checking circular dependencies on an isolated snippet).
+- **`inconclusive`**: Potentially applicable, but available data or inspection budget was insufficient.
+- **`error`**: Technical or protocol failure (e.g., malformed agent JSON, timeout, transport disruption).
+
+### Deterministic Quality Score
+
+The quality score is severity-weighted (`low = 1`, `medium = 2`, `high = 3`, `critical = 5`):
+
+$$\text{Quality Score} = 100 \times \frac{\sum \text{weight}(\text{passed})}{\sum \text{weight}(\text{passed}) + \sum \text{weight}(\text{failed})}$$
+
+**When is Quality Score `N/A` (`null`)?**
+To prevent misleading scores:
+1. If any rule encounters an **`error`**, the quality score is `null`.
+2. In **`project`** evaluations, if any rule has **`partial`** coverage or ends in **`inconclusive`** / **`skipped`**, the score is `null`.
+3. If no rules could be assessed (`passed_weight + failed_weight == 0`), the score is `null`.
+
+**Assessment Coverage**:
+$$\text{Assessment Coverage} = 100 \times \frac{\text{Assessed Rules}}{\text{Total Rules}}$$
+
+---
+
+## Testing
+
+Run the full offline unit and integration test suite without consuming model quota:
 
 ```powershell
-& .\.venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-Тесты используют fake-провайдер и не расходуют модельную квоту. Архитектурное
-описание находится в [docs/evaluation-framework-design.md](docs/evaluation-framework-design.md).
+All 62 tests run with local fake providers in approximately 1.5 seconds.
+
+---
+
+## Documentation
+
+- [Getting Started Guide](docs/getting-started.md)
+- [Python API Reference](docs/api.md)
+- [Project Evaluation & Semantics](docs/project-evaluation.md)
+- [Rule Catalog & Bilingual Parity](docs/rule-catalog.md)
+- [Architecture & Protocols](docs/architecture.md)
+- [Troubleshooting & Diagnostics](docs/troubleshooting.md)
+- [Contributing Guidelines](CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
+- [Evaluation Framework Design](docs/evaluation-framework-design.md) (Original design RFC)
