@@ -18,7 +18,7 @@ The library supports three target scopes:
 
 ## Agent Bridge as a Dependency
 
-Agent Code Checker is housed in an independent Git repository and does not contain agent execution harnesses. Instead, it relies on [**Agent Bridge**](https://github.com/example/agent-bridge) (`codex-antigravity-a2a-bridge`) as a separate transport dependency.
+Agent Code Checker is housed in an independent Git repository and does not contain agent execution harnesses. Instead, it relies on [**Agent Bridge**](../agent-bridge) (`codex-antigravity-a2a-bridge`, maintained as a separate local checkout) as a separate transport dependency.
 
 - **Agent Bridge** exposes standard Agent-to-Agent (A2A) HTTP endpoints to run underlying coding assistants: **Codex**, **Antigravity**, **OpenCode**, and **Claude Code**.
 - **Agent Code Checker** orchestrates the evaluation: it loads the 80-rule smell catalog, plans stable rule batches, manages agent sessions, validates strict structured JSON responses, verifies citations against real source lines, and calculates deterministic scores.
@@ -29,7 +29,7 @@ Agent Code Checker is housed in an independent Git repository and does not conta
 ## Installation
 
 > [!NOTE]
-> This package is prepared for PyPI and GitHub distribution, but is currently installed from local Git checkouts or source directories.
+> This package is currently installed directly from local Git checkouts or source directories alongside its transport dependencies.
 
 Create a virtual environment (Python 3.11 or newer) and install both packages from local checkouts:
 

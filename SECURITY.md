@@ -53,8 +53,9 @@ Agent Code Checker communicates with Agent Bridge using the Agent-to-Agent (A2A)
 
 If you discover a security vulnerability or potential threat in Agent Code Checker:
 
-- **Do NOT disclose the vulnerability publicly in public chat forums or social media.**
-- Please report security concerns through **GitHub Security Advisories** on the repository page (under the "Security" tab -> "Report a vulnerability").
-- If GitHub Security Advisories are unavailable, open a confidential issue or contact the repository maintainers directly through their official GitHub profiles.
+- **Do NOT disclose sensitive exploit or vulnerability details publicly** (such as in public issue trackers, forums, or social media).
+- **Host-Provided Private Channel**: Use a private vulnerability reporting mechanism (such as private security advisories or platform-level confidential reporting) only if the eventual repository host enables it.
+- **Alternative Private Contact**: If the host platform does not have private vulnerability reporting enabled, do not post exploit details publicly; contact the project maintainer through an actually available private channel.
+- **If No Private Channel Is Configured**: If no private reporting channel is currently configured or available, owner action is required to establish one before sensitive details can be safely received.
 
-We appreciate responsible disclosure and will investigate and address reported security issues promptly.
+We appreciate responsible disclosure and will investigate and address verified security issues promptly once received through an appropriate private channel.
