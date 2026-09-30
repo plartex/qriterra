@@ -143,7 +143,7 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
 
                 async def evaluate(self, target, profile, **kwargs):
                     self_target = target
-                    assert self_target.path == args.target
+                    assert self_target.path.samefile(args.target)
                     assert len(profile.rules) == 1
                     assert self.provider.tool_policy == "no_tools"
                     assert kwargs["model"] == "qwen3.5:9b"
