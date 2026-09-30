@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qriterra"
+version = "0.5.0"
+description = "Extensible, evidence-backed evaluation framework"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Aleksandr Kovalenko" }]
+dependencies = [
+  "agent-shuttle>=0.5.0,<1",
+  "mcp>=1.30,<2",
+]
+
+[project.urls]
+Homepage = "https://github.com/Plartex/qriterra"
+Repository = "https://github.com/Plartex/qriterra"
+Issues = "https://github.com/Plartex/qriterra/issues"
+
+[project.scripts]
+qriterra = "qriterra.cli:main"
+qriterra-mcp = "qriterra.mcp_server:main"
+agent-code-checker = "agent_code_checker.cli:main"
+agent-code-checker-mcp = "agent_code_checker.mcp_server:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agent_code_checker*", "qriterra*"]
+
+[tool.setuptools.package-data]
+agent_code_checker = ["profiles/data/*.json", "profiles/data/*.sha256"]
