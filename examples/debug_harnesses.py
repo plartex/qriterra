@@ -33,8 +33,8 @@ TARGET = Path("examples/sample_target.py")
 AGENTS = "auto"  # Or "codex", "antigravity", "opencode,claude_code", etc.
 RULES = None  # All 80 code-smell rules; e.g. "long_method,large_class" for a short run.
 OUTPUT_DIR = Path(__file__).resolve().parent / "debug-runs"
-MODELS = {"antigravity": "gemini-3.8-flash-medium", "codex": "gpt-6-sol",
-          "opencode": "qwen3.5:9b", "claude_code": "qwen3.5:9b"}
+MODELS = {"antigravity": "gemini-3.8-flash-medium", "codex": "gpt-6-luna",
+          "opencode": "qwen3.5:9b", "claude_code": "ornith-1.5:9b"}
 URLS: dict[str, str] = {}  # Existing Bridge peers, e.g. {"codex": "http://127.0.0.1:8765"}.
 COMMANDS: dict[str, str] = {}  # Manual executable paths, e.g. {"antigravity": "C:/tools/agy.exe"}.
 PROFILES: dict[str, Path] = {}  # OpenCode/Claude Code profile JSON for non-Ollama providers.
