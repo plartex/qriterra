@@ -23,8 +23,8 @@ from qriterra import (
     CatalogError,
 )
 from qriterra.providers import (
-    AgentBridgeProvider,
-    agent_bridge_provider_from_name,
+    AgentShuttleProvider,
+    agent_shuttle_provider_from_name,
     FakeAgentProvider,
 )
 ```
@@ -243,12 +243,12 @@ def format_text_report(report: EvaluationReport) -> str: ...
 
 ## 3. Провайдеры (Providers)
 
-### `AgentBridgeProvider`
+### `AgentShuttleProvider`
 
 Реализует транспорт поверх сервера Agent Shuttle.
 
 ```python
-class AgentBridgeProvider:
+class AgentShuttleProvider:
     def __init__(
         self,
         peer_url: str,
@@ -262,20 +262,20 @@ class AgentBridgeProvider:
 - `agent`: идентификатор харнесса (`"codex"`, `"antigravity"`, `"opencode"`).
 - `tool_policy`: политика инструментов (`"no_tools"`, `"read_only"`, `"workspace_write"`, `"full_access"`).
 
-### `agent_bridge_provider_from_name`
+### `agent_shuttle_provider_from_name`
 
 Функция разрешения провайдера по стандартным алиасам и переменным окружения:
 
 ```python
-def agent_bridge_provider_from_name(
+def agent_shuttle_provider_from_name(
     name: str,
     *,
     peer_url: str | None = None,
     tool_policy: str | None = None,
-) -> AgentBridgeProvider: ...
+) -> AgentShuttleProvider: ...
 ```
 
-Поддерживает имена: `codex`, `antigravity`, `opencode`, `claude_code` или с префиксом `agent-shuttle:codex`. Старый префикс `agent-bridge:` также работает. При отсутствии `peer_url` считывает переменные окружения (`BRIDGE_CODEX_URL`, `BRIDGE_ANTIGRAVITY_URL` и т.д.).
+Поддерживает имена: `codex`, `antigravity`, `opencode`, `claude_code` или с префиксом `agent-shuttle:codex`. При отсутствии `peer_url` считывает переменные окружения (`AGENT_SHUTTLE_CODEX_URL`, `AGENT_SHUTTLE_ANTIGRAVITY_URL` и т.д.).
 
 ### `FakeAgentProvider`
 
@@ -303,11 +303,11 @@ from qriterra import (
     format_text_report,
     load_code_smells_profile,
 )
-from qriterra.providers import AgentBridgeProvider
+from qriterra.providers import AgentShuttleProvider
 
 async def run_check():
     # 1. Подключение к харнессу Codex
-    provider = AgentBridgeProvider(
+    provider = AgentShuttleProvider(
         peer_url="http://127.0.0.1:8765",
         agent="codex",
         tool_policy="read_only",

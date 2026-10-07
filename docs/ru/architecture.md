@@ -17,7 +17,7 @@ flowchart TD
     Service --> Batcher["Планировщик пакетов\n(plan_batches)"]
     Service --> Executor["Реестр CheckExecutor\n(LlmCheckExecutor)"]
     Executor --> Prompt["Генератор промптов\n(prompting.py)"]
-    Executor --> Provider["AgentProvider\n(AgentBridgeProvider / FakeAgentProvider)"]
+    Executor --> Provider["AgentProvider\n(AgentShuttleProvider / FakeAgentProvider)"]
     Provider --> A2A["Протокол Agent Shuttle A2A\n(HTTP 127.0.0.1)"]
     Executor --> Validator["Валидатор ответов\n(validation.py)"]
     Service --> Aggregator["Агрегатор результатов и оценка\n(scoring.py)"]
@@ -36,28 +36,28 @@ sequenceDiagram
     participant Client as Пользователь / CLI / MCP
     participant Service as EvaluationService
     participant Executor as LlmCheckExecutor
-    participant Bridge as Agent Shuttle (A2A)
+    participant Shuttle as Agent Shuttle (A2A)
     participant Validator as ResponseValidator
 
     Client->>Service: evaluate(target, profile)
     Service->>Service: Валидация границ цели и симлинков
     Service->>Service: Формирование пакетов правил по областям (scope)
-    Service->>Bridge: open_session(workspace, model)
+    Service->>Shuttle: open_session(workspace, model)
     loop Для каждого пакета правил
         alt Первый ход сессии
-            Executor->>Bridge: ask(build_evaluation_prompt)
+            Executor->>Shuttle: ask(build_evaluation_prompt)
         else Последующие ходы
-            Executor->>Bridge: ask(build_session_batch_prompt)
+            Executor->>Shuttle: ask(build_session_batch_prompt)
         end
-        Bridge-->>Executor: raw_json_response
+        Shuttle-->>Executor: raw_json_response
         Executor->>Validator: validate_batch_response()
         alt Ошибка валидации или повреждённый JSON
-            Executor->>Bridge: ask(build_repair_prompt) [Попытка 2]
-            Bridge-->>Executor: repaired_response
+            Executor->>Shuttle: ask(build_repair_prompt) [Попытка 2]
+            Shuttle-->>Executor: repaired_response
             Executor->>Validator: validate_batch_response()
         end
     end
-    Service->>Bridge: close_session()
+    Service->>Shuttle: close_session()
     Service->>Service: Расчёт взвешенной оценки качества
     Service-->>Client: EvaluationReport (Текст / JSON)
 ```

@@ -16,12 +16,12 @@ class QriterraBrandTests(unittest.TestCase):
     def test_new_imports_reexport_existing_api(self):
         import agent_code_checker
         import qriterra
-        from agent_code_checker.providers import AgentBridgeProvider as LegacyProvider
-        from qriterra.providers import AgentBridgeProvider
+        from agent_code_checker.providers import AgentShuttleProvider as LegacyProvider
+        from qriterra.providers import AgentShuttleProvider
 
         self.assertIs(qriterra.EvaluationService, agent_code_checker.EvaluationService)
         self.assertIs(qriterra.EvaluationTarget, agent_code_checker.EvaluationTarget)
-        self.assertIs(AgentBridgeProvider, LegacyProvider)
+        self.assertIs(AgentShuttleProvider, LegacyProvider)
 
     def test_distribution_exposes_new_and_legacy_commands(self):
         with (ROOT / "pyproject.toml").open("rb") as stream:

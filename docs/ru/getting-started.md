@@ -55,9 +55,9 @@ Qriterra выполняет роль клиента-оркестратора. Д
 - **OpenCode**: локальные модели (например, `qwen3.5:9b` в Ollama) или кастомные OpenAI-совместимые эндпоинты.
 - **Claude Code**: модели Anthropic через Claude Code CLI.
 
-### Запуск постоянных серверов Bridge
+### Запуск постоянных серверов Shuttle
 
-В отдельных терминалах можно запустить серверы Bridge с привязкой к рабочей директории:
+В отдельных терминалах можно запустить серверы Shuttle с привязкой к рабочей директории:
 
 ```powershell
 # Терминал 1: Харнесс Codex на порту 8765
@@ -71,10 +71,10 @@ agent-shuttle serve profile --profile path/to/opencode.profile.json --workspace 
 ```
 
 Подключить чекер к этим серверам можно параметром `--agent-url` или стандартными переменными окружения:
-- `BRIDGE_CODEX_URL=http://127.0.0.1:8765`
-- `BRIDGE_ANTIGRAVITY_URL=http://127.0.0.1:8766`
-- `BRIDGE_OPENCODE_URL=http://127.0.0.1:8767`
-- `BRIDGE_CLAUDE_CODE_URL=http://127.0.0.1:8768`
+- `AGENT_SHUTTLE_CODEX_URL=http://127.0.0.1:8765`
+- `AGENT_SHUTTLE_ANTIGRAVITY_URL=http://127.0.0.1:8766`
+- `AGENT_SHUTTLE_OPENCODE_URL=http://127.0.0.1:8767`
+- `AGENT_SHUTTLE_CLAUDE_CODE_URL=http://127.0.0.1:8768`
 
 ---
 
@@ -149,8 +149,8 @@ MCP-сервер позволяет запускать проверки из с�
       "command": "path/to/.venv/Scripts/qriterra-mcp.exe",
       "args": [],
       "env": {
-        "BRIDGE_CODEX_URL": "http://127.0.0.1:8765",
-        "BRIDGE_ANTIGRAVITY_URL": "http://127.0.0.1:8766"
+        "AGENT_SHUTTLE_CODEX_URL": "http://127.0.0.1:8765",
+        "AGENT_SHUTTLE_ANTIGRAVITY_URL": "http://127.0.0.1:8766"
       }
     }
   }

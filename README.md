@@ -102,7 +102,7 @@ qriterra evaluate project path/to/project `
   --debug
 ```
 
-If `--agent-url` is omitted for built-in harnesses (`codex`, `antigravity`, `opencode`, `claude_code`), the CLI temporarily launches an Agent Shuttle instance scoped to the target project directory. The old `agent-bridge:` provider prefix remains supported.
+If `--agent-url` is omitted for built-in harnesses (`codex`, `antigravity`, `opencode`, `claude_code`), the CLI temporarily launches an Agent Shuttle instance scoped to the target project directory. Provider names use the `agent-shuttle:` prefix.
 
 ---
 
@@ -137,11 +137,11 @@ from qriterra import (
     format_text_report,
     load_code_smells_profile,
 )
-from qriterra.providers import AgentBridgeProvider
+from qriterra.providers import AgentShuttleProvider
 
 async def main():
     # 1. Connect to an Agent Shuttle instance
-    provider = AgentBridgeProvider(
+    provider = AgentShuttleProvider(
         peer_url="http://127.0.0.1:8765",
         agent="codex",
         tool_policy="read_only",
@@ -174,8 +174,8 @@ Qriterra provides an MCP server (`qriterra-mcp`) exposing the unified `evaluate`
       "command": "path/to/.venv/Scripts/qriterra-mcp.exe",
       "args": [],
       "env": {
-        "BRIDGE_CODEX_URL": "http://127.0.0.1:8765",
-        "BRIDGE_ANTIGRAVITY_URL": "http://127.0.0.1:8766"
+        "AGENT_SHUTTLE_CODEX_URL": "http://127.0.0.1:8765",
+        "AGENT_SHUTTLE_ANTIGRAVITY_URL": "http://127.0.0.1:8766"
       }
     }
   }
@@ -190,10 +190,10 @@ Qriterra provides an MCP server (`qriterra-mcp`) exposing the unified `evaluate`
 |---|---|---|
 | `snippet` | In-memory text | `no_tools` (default) |
 | `file` | Inlined text (< 1 MB) | `no_tools` (default) |
-| `project` | Multi-file directory | `read_only` (default for Codex, OpenCode, Claude Code), `workspace_write`, `full_access` (mandatory for Antigravity) |
+| `project` | Multi-file directory | `read_only` (default for all built-in harnesses), `workspace_write`, `full_access` |
 
 > [!WARNING]
-> **Antigravity and `full_access`**: The Antigravity CLI does not enforce a read-only filesystem sandbox in headless automation. Therefore, temporary project launches with Antigravity automatically use `full_access`. The evaluator explicitly prompts the agent not to modify files, but this restriction is enforced at the prompt level, not by an OS sandbox.
+> **Antigravity**: Agent Shuttle verifies a per-conversation `PreToolUse` hook before the evaluation. The default `read_only` policy permits native reading/search inside the project and blocks writes, shell, MCP, and subagents. This is enforced tool gating, not an operating-system sandbox. The Shuttle process needs access to the signed-in user's CLI profile.
 
 > [!IMPORTANT]
 > **Local A2A Security**: Agent Shuttle endpoints communicate via unauthenticated HTTP on `127.0.0.1`. Never expose these ports to public networks. Inspected code is always treated as untrusted data to mitigate prompt-injection attempts.

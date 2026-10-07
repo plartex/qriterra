@@ -102,7 +102,7 @@ qriterra evaluate project path/to/project `
   --debug
 ```
 
-Если для встроенных харнессов (`codex`, `antigravity`, `opencode`, `claude_code`) параметр `--agent-url` не указан, CLI автоматически запустит временный процесс Agent Shuttle, привязанный к каталогу проверяемого проекта. Старый префикс провайдера `agent-bridge:` сохранён для совместимости.
+Если для встроенных харнессов (`codex`, `antigravity`, `opencode`, `claude_code`) параметр `--agent-url` не указан, CLI автоматически запустит временный процесс Agent Shuttle, привязанный к каталогу проверяемого проекта. Имена провайдеров используют префикс `agent-shuttle:`.
 
 ---
 
@@ -137,11 +137,11 @@ from qriterra import (
     format_text_report,
     load_code_smells_profile,
 )
-from qriterra.providers import AgentBridgeProvider
+from qriterra.providers import AgentShuttleProvider
 
 async def main():
     # 1. Подключение к серверу Agent Shuttle
-    provider = AgentBridgeProvider(
+    provider = AgentShuttleProvider(
         peer_url="http://127.0.0.1:8765",
         agent="codex",
         tool_policy="read_only",
@@ -174,8 +174,8 @@ if __name__ == "__main__":
       "command": "path/to/.venv/Scripts/qriterra-mcp.exe",
       "args": [],
       "env": {
-        "BRIDGE_CODEX_URL": "http://127.0.0.1:8765",
-        "BRIDGE_ANTIGRAVITY_URL": "http://127.0.0.1:8766"
+        "AGENT_SHUTTLE_CODEX_URL": "http://127.0.0.1:8765",
+        "AGENT_SHUTTLE_ANTIGRAVITY_URL": "http://127.0.0.1:8766"
       }
     }
   }
@@ -190,10 +190,10 @@ if __name__ == "__main__":
 |---|---|---|
 | `snippet` | Строка в памяти | `no_tools` (по умолчанию) |
 | `file` | Встроенный текст (< 1 МБ) | `no_tools` (по умолчанию) |
-| `project` | Каталог на диске | `read_only` (по умолчанию для Codex, OpenCode, Claude Code), `workspace_write`, `full_access` (обязательно для Antigravity) |
+| `project` | Каталог на диске | `read_only` (по умолчанию для всех встроенных harness), `workspace_write`, `full_access` |
 
 > [!WARNING]
-> **Antigravity и режим `full_access`**: Antigravity CLI не поддерживает гарантированный read-only режим песочницы при автоматическом запуске в headless-режиме. Поэтому временный запуск Antigravity для проектов принудительно требует `full_access`. Чекер просит агента не изменять файлы, однако это ограничение обеспечивается инструкцией в промпте, а не песочницей операционной системы.
+> **Antigravity**: Agent Shuttle проверяет отдельный hook `PreToolUse` перед оценкой. Политика `read_only` по умолчанию разрешает нативное чтение и поиск внутри проекта, блокируя запись, shell, MCP и субагентов. Это проверяемый контроль инструментов, а не песочница ОС. Процесс Shuttle должен иметь доступ к профилю авторизованного пользователя CLI.
 
 > [!IMPORTANT]
 > **Безопасность локального A2A**: Эндпоинты Agent Shuttle используют неаутентифицированный HTTP-протокол на `127.0.0.1`. Не открывайте эти порты во внешнюю сеть. Анализируемый исходный код всегда трактуется как недоверенные данные во избежание атак внедрения промптов (prompt injection).

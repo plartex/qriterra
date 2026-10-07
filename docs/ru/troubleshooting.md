@@ -35,7 +35,7 @@ qriterra evaluate file src/service.py --provider agent-shuttle:codex --debug
 
 ## 2. Типичные ошибки и их решение
 
-### 1. `Bridge workspace ... does not match project ...`
+### 1. `Shuttle workspace ... does not match project ...`
 - **Причина**: Сервер Agent Shuttle был запущен в каталоге, отличном от целевого проекта.
 - **Решение**: Запустите Agent Shuttle с параметром `--workspace <путь-к-проекту>` либо опустите флаг `--agent-url`, чтобы CLI автоматически поднял временный сервер в нужной папке.
 

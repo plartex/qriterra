@@ -6,7 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import AsyncMock
 
-from agent_bridge import BridgeResult
+from agent_shuttle import ShuttleResult
 
 from agent_code_checker import (
     EvaluationService,
@@ -17,7 +17,7 @@ from agent_code_checker import (
 from agent_code_checker.batching import plan_batches
 from agent_code_checker.prompting import MAX_INLINE_FILE_BYTES, build_evaluation_prompt
 from agent_code_checker.providers import FakeAgentProvider
-from agent_code_checker.providers.agent_bridge import AgentBridgeProvider
+from agent_code_checker.providers.agent_shuttle import AgentShuttleProvider
 from agent_code_checker.providers.base import ProviderResponse
 from agent_code_checker.models import CheckResult
 from agent_code_checker.scoring import summarize
@@ -182,9 +182,9 @@ class CatalogAndBatchingTest(unittest.TestCase):
 
 
 class EvaluationServiceTest(unittest.IsolatedAsyncioTestCase):
-    async def test_bridge_session_reuses_target_and_reports_per_turn_usage(self):
+    async def test_shuttle_session_reuses_target_and_reports_per_turn_usage(self):
         profile = load_code_smells_profile(rule_ids=["long_method", "large_class"])
-        provider = AgentBridgeProvider("http://127.0.0.1:8766", "antigravity")
+        provider = AgentShuttleProvider("http://127.0.0.1:8766", "antigravity")
         prompts = []
         settings = []
 
@@ -200,7 +200,7 @@ class EvaluationServiceTest(unittest.IsolatedAsyncioTestCase):
 
             async def ask(self, prompt):
                 prompts.append(prompt)
-                return BridgeResult(
+                return ShuttleResult(
                     "http://127.0.0.1:8766", None, self.id,
                     "TASK_STATE_COMPLETED",
                     response_for(prompt, lambda rule: {
@@ -235,14 +235,14 @@ class EvaluationServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report.debug_trace[-1]["usage_totals"]["input_tokens"], 203)
         self.assertEqual(report.debug_trace[-1]["usage_totals"]["cache_read_tokens"], 20)
 
-    async def test_bridge_no_session_sends_full_target_for_each_batch(self):
+    async def test_shuttle_no_session_sends_full_target_for_each_batch(self):
         profile = load_code_smells_profile(rule_ids=["long_method", "large_class"])
-        provider = AgentBridgeProvider("http://127.0.0.1:8766", "antigravity")
+        provider = AgentShuttleProvider("http://127.0.0.1:8766", "antigravity")
         prompts = []
 
         async def ask(url, prompt, **kwargs):
             prompts.append(prompt)
-            return BridgeResult(
+            return ShuttleResult(
                 url, None, None, "TASK_STATE_COMPLETED",
                 response_for(prompt, lambda rule: {
                     "rule_id": rule["id"], "status": "passed",
@@ -261,7 +261,7 @@ class EvaluationServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_session_repair_does_not_resend_target(self):
         profile = load_code_smells_profile(rule_ids=["long_method", "large_class"])
-        provider = AgentBridgeProvider("http://127.0.0.1:8766", "antigravity")
+        provider = AgentShuttleProvider("http://127.0.0.1:8766", "antigravity")
         prompts = []
 
         class RepairSession:
@@ -283,7 +283,7 @@ class EvaluationServiceTest(unittest.IsolatedAsyncioTestCase):
                         "rule_id": rule["id"], "status": "passed",
                         "confidence": 1.0, "evidence": [],
                     })
-                return BridgeResult(
+                return ShuttleResult(
                     "http://127.0.0.1:8766", None, self.id,
                     "TASK_STATE_COMPLETED", answer,
                 )
@@ -301,7 +301,7 @@ class EvaluationServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_failed_first_session_turn_resends_target_on_next_batch(self):
         profile = load_code_smells_profile(rule_ids=["long_method", "large_class"])
-        provider = AgentBridgeProvider("http://127.0.0.1:8766", "antigravity")
+        provider = AgentShuttleProvider("http://127.0.0.1:8766", "antigravity")
         prompts = []
 
         class FlakySession:
@@ -317,7 +317,7 @@ class EvaluationServiceTest(unittest.IsolatedAsyncioTestCase):
                 prompts.append(prompt)
                 if len(prompts) == 1:
                     raise RuntimeError("transport failed")
-                return BridgeResult(
+                return ShuttleResult(
                     "http://127.0.0.1:8766", None, self.id,
                     "TASK_STATE_COMPLETED",
                     response_for(prompt, lambda rule: {
@@ -337,7 +337,7 @@ class EvaluationServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_project_target_rejected_without_agent_tools_before_model_call(self):
         with tempfile.TemporaryDirectory() as folder:
-            provider = AgentBridgeProvider("http://127.0.0.1:1", "antigravity", tool_policy="no_tools")
+            provider = AgentShuttleProvider("http://127.0.0.1:1", "antigravity", tool_policy="no_tools")
             with self.assertRaisesRegex(ValueError, "No model calls were made"):
                 await EvaluationService(provider).evaluate(
                     EvaluationTarget.project(folder),
@@ -354,6 +354,7 @@ class EvaluationServiceTest(unittest.IsolatedAsyncioTestCase):
                     "rule_id": rule["id"], "status": "passed", "confidence": 1.0, "evidence": [],
                 }),
                 {"input_tokens": 1234, "output_tokens": 56, "total_tokens": 1290},
+                {"conversation_id": "native-session"},
             )
 
         report = await EvaluationService(FakeAgentProvider(handler)).evaluate(
@@ -368,6 +369,7 @@ class EvaluationServiceTest(unittest.IsolatedAsyncioTestCase):
             "validated", "batch_finished", "run_finished",
         ])
         self.assertEqual(emitted[-1]["usage_totals"]["input_tokens"], 1234)
+        self.assertEqual(emitted[3]["details"]["conversation_id"], "native-session")
         self.assertEqual(report.to_dict()["debug_trace"], emitted)
 
     async def test_model_and_reasoning_effort_reach_provider_and_report(self):
