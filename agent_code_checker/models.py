@@ -265,6 +265,7 @@ class EvaluationReport:
     warnings: tuple[str, ...] = field(default_factory=tuple)
     debug_trace: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     schema_version: str = "1.0"
+    source_snapshot: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         result = {
@@ -279,6 +280,8 @@ class EvaluationReport:
         }
         if self.debug_trace:
             result["debug_trace"] = list(self.debug_trace)
+        if self.source_snapshot is not None:
+            result["source_snapshot"] = self.source_snapshot
         return result
 
     def to_json(self, *, indent: int | None = 2) -> str:

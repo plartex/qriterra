@@ -2,7 +2,7 @@
 
 [English](project-evaluation.md) | [Русский](ru/project-evaluation.md)
 
-Project evaluation (`EvaluationTarget.project`) is designed to inspect an entire codebase repository directory. Rather than relying on simple text inlining or static syntax trees, Qriterra grants an AI agent interactive search and reading tools within an isolated session to uncover complex, cross-module code smells.
+Project evaluation (`EvaluationTarget.project`) is designed to inspect a repository. Qriterra supplies a bounded source snapshot and gives the agent read and search tools for further inspection within one session, including relationships across modules.
 
 ---
 
@@ -10,11 +10,43 @@ Project evaluation (`EvaluationTarget.project`) is designed to inspect an entire
 
 | Aspect | `snippet` / `file` | `project` |
 |---|---|---|
-| **Context Delivery** | Inlined into the prompt text (< 1 MB) | Directory path passed; agent explores files using tools |
+| **Context Delivery** | Inlined into the prompt text (< 1 MB) | Source manifest and bounded snapshot sent once; agent reads remaining files with tools |
 | **Agent Tools** | `tool_policy="no_tools"` (closed-book) | Read and search tools enabled (`read_only` or `full_access`) |
 | **Response Schema** | Schema 1.0 (flat list of `evidence`) | Schema 2.0 (`findings` with multiple citations, `coverage`) |
 | **Session Model** | Optional session reuse (`--no-session` allowed) | Exactly **one** persistent session required across all batches |
 | **Coverage Requirement**| Implicitly complete for supplied code | Agent-reported `complete` or `partial` per rule |
+
+---
+
+## Reliability and limits
+
+Antigravity project sessions receive a native JSON output schema. Agent Shuttle
+requires a fresh `finish` result for each turn, and Qriterra independently checks
+batch IDs, rule IDs, confidence, coverage, file paths, line ranges and exact
+source excerpts. A directory cannot count as an inspected source file.
+
+Valid results survive malformed siblings and later timeouts. Only unresolved
+rules are retried, with at most two attempts per group before subdivision into
+smaller groups. All groups use the same conversation. A fatal transport or
+session failure stops further calls; every remaining rule gets an explicit
+error. The project time budget also bounds recovery.
+
+The initial snapshot includes source and configuration files, excluding runtime,
+environment and generated directories. Its inline source budget is 1,000,000
+bytes; omitted files remain in the manifest for tool reads. Hashes are checked
+after evaluation. Changed sources invalidate assessed results rather than
+producing a score for mixed versions. `source_snapshot` records the manifest,
+limitations and detected changes.
+
+The manifest also records declared inspected files, undeclared files and their
+coverage ratio. Undeclared files or snapshot limitations suppress the overall
+quality score. Embedded source is inspected directly, without systematic tool
+rereads; omitted source still requires file tools.
+
+These checks verify protocol and source evidence. Semantic judgments and
+per-rule coverage remain agent declarations; a valid JSON report alone does not
+prove that every relevant case was found. Partial coverage cannot pass a rule
+or produce a complete project quality score.
 
 ---
 
@@ -115,7 +147,7 @@ Project evaluations require continuous interaction with the codebase:
    - All rule batches are evaluated within this conversation, allowing the model to leverage its mental map of the codebase.
    - `--no-session` is explicitly forbidden for project targets and raises an immediate `ValueError`.
 2. **Workspace Verification**:
-   - Before any model calls occur, Qriterra queries the Bridge server's identity. If the server's working directory does not match the canonical target project path, execution terminates immediately.
+   - Before any model calls occur, Qriterra queries the Shuttle server's identity. If the server's working directory does not match the canonical target project path, execution terminates immediately.
 3. **Time Budget (`--max-project-seconds`)**:
    - Default: `1800` seconds (30 minutes).
    - If the monotonic runtime exceeds this limit during a batch, that batch and all subsequent batches terminate immediately.

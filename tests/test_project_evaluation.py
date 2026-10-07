@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from agent_code_checker import EvaluationService, EvaluationTarget, load_code_smells_profile
-from agent_code_checker.prompting import build_evaluation_prompt, build_session_batch_prompt
+from agent_code_checker.prompting import build_evaluation_prompt, build_repair_prompt, build_session_batch_prompt
 from agent_code_checker.providers.fake import FakeAgentProvider
 
 
@@ -46,6 +46,13 @@ class ProjectPromptTests(unittest.TestCase):
         self.assertEqual(request_from_prompt(prompt)["target"]["kind"], "project")
         self.assertIn("same project", next_prompt)
         self.assertNotIn("Do not invoke tools", next_prompt)
+        repair = build_repair_prompt(prompt, "batch-0001", ("duplicate_code",), "{}",
+                                     "invalid confidence", schema_version="2.0")
+        for text in (prompt, next_prompt, repair):
+            self.assertIn("confidence must be a number from 0 to 1", text)
+            self.assertIn("findings must be an array", text)
+            self.assertIn("inspected_paths must be an array", text)
+            self.assertIn("failed requires a nonempty findings array", text)
 
 
 class ProjectEvaluationTests(unittest.IsolatedAsyncioTestCase):
@@ -61,7 +68,7 @@ class ProjectEvaluationTests(unittest.IsolatedAsyncioTestCase):
 
             provider = SessionFake(handler)
             report = await EvaluationService(provider).evaluate(
-                EvaluationTarget.project(root), profile, max_project_seconds=0.01,
+                EvaluationTarget.project(root), profile, max_project_seconds=0.1,
             )
 
         self.assertEqual((provider.opened, provider.closed), (1, 1))
@@ -184,6 +191,60 @@ class ProjectEvaluationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(report.summary.inconclusive, 1)
         self.assertIsNone(report.summary.quality_score)
+
+    async def test_project_json_repair_keeps_the_project_schema(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "one.py").write_text("x = 1\n", encoding="utf-8")
+            profile = load_code_smells_profile(rule_ids=["long_method"])
+
+            def handler(prompt, *_args):
+                if "REPAIR_DATA_JSON\n" not in prompt:
+                    return "invalid JSON"
+                self.assertIn("Use read and search tools within the same project", prompt)
+                version = "2.0" if 'schema_version `2.0`' in prompt else "1.0"
+                return json.dumps({
+                    "schema_version": version, "batch_id": "batch-0001",
+                    "results": [{"rule_id": "long_method", "status": "passed", "confidence": 0.9,
+                                 "coverage": {"status": "complete", "inspected_paths": ["one.py"],
+                                              "limitations": []}, "findings": []}],
+                })
+
+            provider = SessionFake(handler)
+            report = await EvaluationService(provider).evaluate(EvaluationTarget.project(root), profile)
+            self.assertEqual(report.summary.errors, 0)
+            self.assertEqual(report.summary.passed, 1)
+
+    async def test_bad_result_does_not_discard_a_valid_sibling_after_repair(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "one.py").write_text("x = 1\n", encoding="utf-8")
+            profile = load_code_smells_profile(rule_ids=["long_method", "duplicate_code"])
+
+            def handler(prompt, *_args):
+                repairing = "REPAIR_DATA_JSON\n" in prompt
+                return json.dumps({
+                    "schema_version": "2.0", "batch_id": "batch-0001",
+                    "results": [
+                        {"rule_id": "long_method", "status": "passed" if not repairing else "failed",
+                         "confidence": 0.9,
+                         "coverage": {"status": "complete", "inspected_paths": ["one.py"],
+                                      "limitations": []},
+                         "findings": []},
+                        {"rule_id": "duplicate_code", "status": "passed", "confidence": None,
+                         "coverage": {"status": "complete", "inspected_paths": ["one.py"],
+                                      "limitations": []}, "findings": []},
+                    ],
+                })
+
+            report = await EvaluationService(SessionFake(handler)).evaluate(
+                EvaluationTarget.project(root), profile, batch_size=10,
+            )
+        by_rule = {item.rule_id: item for item in report.results}
+        self.assertEqual(by_rule["long_method"].status, "passed")
+        self.assertEqual(by_rule["duplicate_code"].status, "error")
+        self.assertEqual(report.summary.passed, 1)
+        self.assertEqual(report.summary.errors, 1)
 
     async def test_project_evidence_excerpt_must_match_source(self):
         with tempfile.TemporaryDirectory() as folder:
