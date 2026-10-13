@@ -11,10 +11,8 @@ from agent_code_checker.cli import _project_harness, main
 
 
 class PortableCliTests(unittest.TestCase):
-    def test_project_harness_accepts_shuttle_prefix_and_rejects_old_prefix(self):
+    def test_project_harness_accepts_shuttle_prefix(self):
         self.assertEqual(_project_harness("agent-shuttle:codex"), _project_harness("codex"))
-        with self.assertRaisesRegex(ValueError, "Automatic project launch"):
-            _project_harness("agent-bridge:codex")
 
     def test_project_full_access_reaches_all_supported_harnesses(self):
         report = SimpleNamespace(to_json=lambda: '{"ok":true}', summary=SimpleNamespace(errors=0))

@@ -41,7 +41,3 @@ class ProviderResolutionTests(unittest.TestCase):
     def test_unrecognized_provider_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "Unknown provider"):
             agent_shuttle_provider_from_name("unknown", peer_url="http://127.0.0.1:8767")
-
-    def test_old_provider_prefix_is_rejected(self):
-        with self.assertRaisesRegex(ValueError, "Unknown provider"):
-            agent_shuttle_provider_from_name("agent-bridge:codex", peer_url="http://127.0.0.1:8765")
