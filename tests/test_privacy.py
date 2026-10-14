@@ -95,6 +95,7 @@ class ReportPrivacyTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "example.py"
             path.write_text("x = 1")
+            path = path.resolve()
             report = await EvaluationService(FakeAgentProvider(answer)).evaluate(
                 EvaluationTarget.file(path), load_code_smells_profile(rule_ids=["long_method"]), debug=True,
             )
