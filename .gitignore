@@ -1,5 +1,9 @@
 /.venv/
 /.runtime/
+**/.idea/
+/*.session.*.json
+/*.last-batch.json
+/*.recheck.json
 /.codex/config.toml
 /.agents/mcp_config.json
 /.pytest_cache/

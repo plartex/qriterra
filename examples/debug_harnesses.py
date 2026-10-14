@@ -29,7 +29,7 @@ except ModuleNotFoundError as exc:
 
 
 # Edit these values for another project. RULES=None is the user's full 80-rule run.
-TARGET = Path("examples/sample_target.py")
+TARGET = Path(__file__).resolve().parent / "sample_target.py"
 AGENTS = "auto"  # Or "codex", "antigravity", "opencode,claude_code", etc.
 RULES = None  # All 80 code-smell rules; e.g. "long_method,large_class" for a short run.
 OUTPUT_DIR = Path(__file__).resolve().parent / "debug-runs"

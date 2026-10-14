@@ -5,13 +5,17 @@ import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from pathspec import GitIgnoreSpec
+from fnmatch import fnmatchcase
 
 
 _EXCLUDED_DIRS = frozenset({
     ".git", ".runtime", ".venv", "venv", ".agents", ".codex", ".gemini", ".agent-shuttle",
     "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", "node_modules",
-    "build", "dist", ".idea", ".vscode", "target",
+    "build", "dist", ".idea", ".vscode", "target", ".aws", ".ssh", "debug-runs",
 })
+_PRIVATE_FILES = (".env", ".env.*", "credentials*", "secrets*", "*.pem", "*.key",
+                  "*.session.*.json", "*.last-batch.json", "*.recheck.json")
 _SOURCE_SUFFIXES = frozenset({
     ".py", ".pyi", ".js", ".jsx", ".ts", ".tsx", ".vue", ".svelte", ".go", ".rs",
     ".java", ".kt", ".c", ".cpp", ".h", ".hpp", ".cs", ".rb", ".php", ".sh", ".ps1",
@@ -70,9 +74,35 @@ def _paths(root, discovery_mode=None):
             if discovery_mode == "git":
                 raise ProjectSnapshotError("Git source inventory is unavailable") from exc
     paths = []
+    # A failed Git inventory in a repository must not silently bypass its
+    # global/info excludes, which a filesystem walk cannot reproduce.
+    if any((parent / ".git").exists() for parent in (root, *root.parents)):
+        raise ProjectSnapshotError("Git source inventory is unavailable; refusing filesystem fallback in a repository")
+    ignore_specs = {}
     for folder, dirs, files in os.walk(root, followlinks=False):
-        dirs[:] = [name for name in dirs if name.casefold() not in _EXCLUDED_DIRS]
-        paths.extend((Path(folder) / name).relative_to(root) for name in files)
+        folder = Path(folder)
+        inherited = list(ignore_specs.get(folder, ()))
+        ignore = folder / ".gitignore"
+        if ignore.exists():
+            try:
+                if ignore.is_symlink():
+                    raise OSError("symlink ignore file")
+                inherited.append((folder, GitIgnoreSpec.from_lines(ignore.read_text(encoding="utf-8").splitlines())))
+            except (OSError, UnicodeError, ValueError) as exc:
+                raise ProjectSnapshotError("Ignore rules could not be read; no source was sent") from exc
+        def ignored(path, directory=False):
+            excluded = False
+            for base, spec in inherited:
+                match = spec.check_file(path.relative_to(base).as_posix() + ("/" if directory else ""))
+                if match.include is not None:
+                    excluded = match.include
+            return excluded
+        dirs[:] = [name for name in dirs if name.casefold() not in _EXCLUDED_DIRS
+                   and not (folder / name).is_symlink() and not ignored(folder / name, True)]
+        for name in dirs:
+            ignore_specs[folder / name] = inherited
+        paths.extend((folder / name).relative_to(root) for name in files
+                     if not ignored(folder / name))
     return sorted(set(paths), key=lambda path: path.as_posix()), "filesystem"
 
 
@@ -86,10 +116,14 @@ def capture_project(root, *, inline_bytes=1_000_000, discovery_mode=None):
     paths, actual_mode = _paths(root, discovery_mode)
     for relative in paths:
         if (relative.is_absolute() or any(part.casefold() in _EXCLUDED_DIRS for part in relative.parts)
+                or ".." in relative.parts
+                or any(fnmatchcase(relative.name.casefold(), pattern) for pattern in _PRIVATE_FILES)
                 or relative.suffix.casefold() not in _SOURCE_SUFFIXES
                 and relative.name not in {"Dockerfile", "Makefile"}):
             continue
         path = root / relative
+        if any(parent.is_symlink() for parent in (path, *list(path.parents)[:len(relative.parts) - 1])):
+            continue
         if not path.is_file():
             continue
         try:

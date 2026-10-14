@@ -18,6 +18,7 @@ from .providers.base import AgentProvider, ProviderExecutionError
 from .response_schema import project_output_schema
 from .project_snapshot import capture_project, ProjectSnapshotError
 from .scoring import summarize
+from .privacy import diagnostic_error, diagnostic_details
 
 
 class EvaluationService:
@@ -48,6 +49,14 @@ class EvaluationService:
         def emit(event: str, details: dict[str, Any]) -> None:
             if not debug:
                 return
+            details = dict(details)
+            details.pop("session_id", None)
+            if "details" in details:
+                details["details"] = diagnostic_details(details["details"])
+            if "usage" in details and isinstance(details["usage"], dict):
+                details["usage"] = {key: value for key, value in details["usage"].items()
+                                    if key in {"input_tokens", "output_tokens", "total_tokens", "cached_tokens", "reasoning_tokens", "cache_read_tokens", "cache_write_tokens"}
+                                    and type(value) is int and value >= 0}
             entry = {
                 "time": datetime.now(timezone.utc).isoformat(),
                 "elapsed_seconds": round(monotonic() - started, 3),
@@ -139,7 +148,7 @@ class EvaluationService:
                         ) for rule in rules
                     )
                 except Exception as exc:
-                    reason = f"{type(exc).__name__}: {exc}"
+                    reason = diagnostic_error(exc)
                     if isinstance(exc, ProviderExecutionError) and not exc.retryable:
                         if fatal_session_error is None:
                             emit("run_aborted", {"reason": reason, "completed_rule_ids": list(collected)})
@@ -147,7 +156,7 @@ class EvaluationService:
                     emit("batch_error", {
                         "batch_id": batch_id,
                         "error_type": type(exc).__name__,
-                        "message": str(exc).splitlines()[0][:300],
+                        "message": reason,
                     })
                     warnings.append(f"{batch_id} failed: {reason}")
                     batch_results = tuple(

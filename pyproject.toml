@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Aleksandr Kovalenko" }]
 dependencies = [
+  "pathspec>=0.12,<2",
   "agent-shuttle>=0.8.0,<1",
   "mcp>=1.30,<2",
 ]

@@ -13,6 +13,7 @@ from ..prompting import (
 )
 from ..providers.base import AgentProvider, ProviderResponse, ProviderExecutionError
 from ..validation import BatchProtocolError, recover_valid_project_results, validate_batch_response
+from ..privacy import diagnostic_error, assessment_error
 from .base import BatchRequest
 
 
@@ -103,7 +104,7 @@ class LlmCheckExecutor:
                 request.emit("validation_failed", {
                     "batch_id": request.batch_id,
                     "attempt": 1,
-                    "reason": str(first_error)[:500],
+                    "reason": diagnostic_error(first_error),
                 })
             repair = build_repair_prompt(
                 prompt,
@@ -148,10 +149,10 @@ class LlmCheckExecutor:
                     if request.emit:
                         request.emit("agent_error", {"batch_id": batch_id, "attempt": call_number,
                                      "usage": exc.usage, "details": exc.details,
-                                     "retryable": exc.retryable, "reason": str(exc)[:1500]})
+                                     "retryable": exc.retryable, "reason": diagnostic_error(exc)})
                     if not exc.retryable:
                         raise
-                    problem = str(exc)
+                    problem = diagnostic_error(exc)
                     for rule in pending:
                         errors[rule.id] = problem
                 else:
@@ -160,7 +161,7 @@ class LlmCheckExecutor:
                     )
                     for item in results:
                         if item.status == "error":
-                            errors[item.rule_id] = item.reason
+                            errors[item.rule_id] = assessment_error(item.reason)
                         elif item.rule_id not in accepted:
                             accepted[item.rule_id] = item
                             if request.on_result:

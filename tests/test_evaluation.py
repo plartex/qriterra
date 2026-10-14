@@ -369,7 +369,7 @@ class EvaluationServiceTest(unittest.IsolatedAsyncioTestCase):
             "validated", "batch_finished", "run_finished",
         ])
         self.assertEqual(emitted[-1]["usage_totals"]["input_tokens"], 1234)
-        self.assertEqual(emitted[3]["details"]["conversation_id"], "native-session")
+        self.assertNotIn("conversation_id", emitted[3]["details"])
         self.assertEqual(report.to_dict()["debug_trace"], emitted)
 
     async def test_model_and_reasoning_effort_reach_provider_and_report(self):

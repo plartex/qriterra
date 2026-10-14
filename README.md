@@ -246,6 +246,7 @@ The offline test suite runs with local fake providers, without model quota usage
 - [Rule Catalog & Bilingual Parity](docs/rule-catalog.md)
 - [Architecture & Protocols](docs/architecture.md)
 - [Troubleshooting & Diagnostics](docs/troubleshooting.md)
+- [Review Data & Private Diagnostics](docs/privacy.md)
 - [Contributing Guidelines](CONTRIBUTING.md)
 - [Security Policy](SECURITY.md)
 - [Evaluation Framework Design](docs/evaluation-framework-design.md) (Original design RFC)

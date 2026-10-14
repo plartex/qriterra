@@ -58,6 +58,8 @@ def main() -> None:
         help="LLM-facing rule language; auto uses English for the bundled catalog",
     )
     evaluate.add_argument("--json", action="store_true", dest="json_output")
+    evaluate.add_argument("--shareable", action="store_true",
+                          help="Export JSON without debug/session IDs and with known secrets and local paths masked; review source excerpts before sharing")
     evaluate.add_argument(
         "--debug", action="store_true",
         help="Print batch-by-batch JSON trace to stderr and include it in the report",
@@ -146,7 +148,8 @@ def main() -> None:
         report = asyncio.run(run_evaluation())
     except ValueError as exc:
         parser.error(str(exc))
-    rendered = report.to_json() if args.json_output else format_text_report(report)
+    rendered = report.to_json(shareable=True) if args.shareable else (
+        report.to_json() if args.json_output else format_text_report(report))
     if args.output:
         args.output.write_text(rendered + "\n", encoding="utf-8")
     else:
