@@ -5,25 +5,27 @@ import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock
 
-from agent_bridge import BridgeResult
-from agent_code_checker.providers import AgentBridgeProvider
+from agent_shuttle import ShuttleResult
+from agent_code_checker.providers import AgentShuttleProvider
 
 
-class BridgeToolPolicyTests(unittest.IsolatedAsyncioTestCase):
+class ShuttleToolPolicyTests(unittest.IsolatedAsyncioTestCase):
     async def test_one_shot_forwards_no_tools_without_legacy_read_only(self):
-        provider = AgentBridgeProvider("http://127.0.0.1:8767", "opencode-local", tool_policy="no_tools")
-        provider.client.ask = AsyncMock(return_value=BridgeResult(
+        provider = AgentShuttleProvider("http://127.0.0.1:8767", "opencode-local", tool_policy="no_tools")
+        provider.client.ask = AsyncMock(return_value=ShuttleResult(
             provider.peer_url, None, None, "TASK_STATE_COMPLETED", "ok",
+            details={"conversation_id": "native-session"},
         ))
 
-        await provider.run("analyze", workspace=None, model="qwen3.5:9b")
+        response = await provider.run("analyze", workspace=None, model="qwen3.5:9b")
 
         self.assertTrue(provider.capabilities.read_only)
         self.assertEqual(provider.client.ask.call_args.kwargs["tool_policy"], "no_tools")
         self.assertFalse(provider.client.ask.call_args.kwargs["read_only"])
+        self.assertEqual(response.details["conversation_id"], "native-session")
 
     async def test_session_forwards_no_tools_and_keeps_model(self):
-        provider = AgentBridgeProvider("http://127.0.0.1:8768", "claude-local", tool_policy="no_tools")
+        provider = AgentShuttleProvider("http://127.0.0.1:8768", "claude-local", tool_policy="no_tools")
 
         class Session:
             id = "11111111-1111-4111-8111-111111111111"
@@ -35,7 +37,7 @@ class BridgeToolPolicyTests(unittest.IsolatedAsyncioTestCase):
                 pass
 
             async def ask(self, _prompt):
-                return BridgeResult(provider.peer_url, None, self.id, "TASK_STATE_COMPLETED", "ok")
+                return ShuttleResult(provider.peer_url, None, self.id, "TASK_STATE_COMPLETED", "ok")
 
         provider.client.session = unittest.mock.Mock(return_value=Session())
         async with provider.open_session(model="qwen3.5:9b") as session_provider:
@@ -47,12 +49,12 @@ class BridgeToolPolicyTests(unittest.IsolatedAsyncioTestCase):
 
     def test_invalid_policy_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "tool_policy"):
-            AgentBridgeProvider("http://127.0.0.1:8767", "opencode-local", tool_policy="invalid")
+            AgentShuttleProvider("http://127.0.0.1:8767", "opencode-local", tool_policy="invalid")
 
     async def test_project_session_checks_workspace_and_read_only_tools_before_start(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder).resolve()
-            provider = AgentBridgeProvider("http://127.0.0.1:8767", "opencode-local", tool_policy="read_only")
+            provider = AgentShuttleProvider("http://127.0.0.1:8767", "opencode-local", tool_policy="read_only")
             provider.client.identity = AsyncMock(return_value={"workspace": str(root)})
 
             class Session:
@@ -73,7 +75,7 @@ class BridgeToolPolicyTests(unittest.IsolatedAsyncioTestCase):
     async def test_project_session_rejects_wrong_workspace_without_model_call(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder).resolve()
-            provider = AgentBridgeProvider("http://127.0.0.1:8765", "codex")
+            provider = AgentShuttleProvider("http://127.0.0.1:8765", "codex")
             provider.client.identity = AsyncMock(return_value={"workspace": str(root.parent)})
             provider.client.session = unittest.mock.Mock()
 
@@ -85,7 +87,7 @@ class BridgeToolPolicyTests(unittest.IsolatedAsyncioTestCase):
     async def test_project_session_accepts_antigravity_full_access_without_read_only_claim(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder).resolve()
-            provider = AgentBridgeProvider(
+            provider = AgentShuttleProvider(
                 "http://127.0.0.1:8766", "antigravity", tool_policy="full_access",
             )
             provider.client.identity = AsyncMock(return_value={
@@ -109,7 +111,7 @@ class BridgeToolPolicyTests(unittest.IsolatedAsyncioTestCase):
     async def test_project_full_access_rejects_old_antigravity_server_before_model_call(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder).resolve()
-            provider = AgentBridgeProvider("http://127.0.0.1:8766", "antigravity", tool_policy="full_access")
+            provider = AgentShuttleProvider("http://127.0.0.1:8766", "antigravity", tool_policy="full_access")
             provider.client.identity = AsyncMock(return_value={
                 "workspace": str(root), "backend": "agy_cli", "agy_permission_mode": "settings",
             })

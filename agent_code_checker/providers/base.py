@@ -22,6 +22,17 @@ class ProviderCapabilities:
 class ProviderResponse:
     text: str
     usage: dict[str, int] | None = None
+    details: dict[str, object] | None = None
+
+
+class ProviderExecutionError(RuntimeError):
+    """A failed native turn, with an explicit continuation and retry decision."""
+
+    def __init__(self, message, *, retryable=False, usage=None, details=None):
+        super().__init__(message)
+        self.retryable = retryable
+        self.usage = usage
+        self.details = details
 
 
 class AgentProvider(Protocol):

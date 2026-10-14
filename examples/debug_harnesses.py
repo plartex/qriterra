@@ -1,7 +1,7 @@
-"""One-click diagnostic orchestrating Agent Bridge and Agent Code Checker.
+"""One-click diagnostic orchestrating Agent Shuttle and Qriterra.
 
 Open this file in PyCharm and press Run. All task-specific calls live here:
-Bridge discovery/info/ask, followed by EvaluationService.evaluate(). The two
+Shuttle discovery/info/ask, followed by EvaluationService.evaluate(). The two
 libraries remain reusable independently. Command-line arguments override the
 configuration below when the script is launched from a terminal or IDE.
 """
@@ -18,24 +18,24 @@ from pathlib import Path
 from uuid import uuid4
 
 try:
-    from agent_bridge import BridgeClient, HarnessLaunch, connect_harness, discover_harnesses
+    from agent_shuttle import ShuttleClient, HarnessLaunch, connect_harness, discover_harnesses
     from agent_code_checker import EvaluationService, EvaluationTarget, load_code_smells_profile
-    from agent_code_checker.providers import AgentBridgeProvider
+    from agent_code_checker.providers import AgentShuttleProvider
 except ModuleNotFoundError as exc:
     raise SystemExit(
         f"Missing {exc.name!r}. Select the checker .venv as the PyCharm interpreter, "
-        "or install Agent Bridge and Agent Code Checker into this Python environment."
+        "or install Agent Shuttle and Qriterra into this Python environment."
     ) from None
 
 
 # Edit these values for another project. RULES=None is the user's full 80-rule run.
-TARGET = Path("examples/sample_target.py")
+TARGET = Path(__file__).resolve().parent / "sample_target.py"
 AGENTS = "auto"  # Or "codex", "antigravity", "opencode,claude_code", etc.
 RULES = None  # All 80 code-smell rules; e.g. "long_method,large_class" for a short run.
 OUTPUT_DIR = Path(__file__).resolve().parent / "debug-runs"
 MODELS = {"antigravity": "gemini-3.8-flash-medium", "codex": "gpt-6-luna",
           "opencode": "qwen3.5:9b", "claude_code": "ornith-1.5:9b"}
-URLS: dict[str, str] = {}  # Existing Bridge peers, e.g. {"codex": "http://127.0.0.1:8765"}.
+URLS: dict[str, str] = {}  # Existing Shuttle peers, e.g. {"codex": "http://127.0.0.1:8765"}.
 COMMANDS: dict[str, str] = {}  # Manual executable paths, e.g. {"antigravity": "C:/tools/agy.exe"}.
 PROFILES: dict[str, Path] = {}  # OpenCode/Claude Code profile JSON for non-Ollama providers.
 OLLAMA_URL = "http://127.0.0.1:11434"
@@ -88,8 +88,8 @@ def _print_json(value: dict) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2), flush=True)
 
 
-async def probe(harness: Harness, client: BridgeClient) -> dict:
-    """Part 1: call Bridge.info() and Bridge.ask() for a small poem."""
+async def probe(harness: Harness, client: ShuttleClient) -> dict:
+    """Part 1: call Shuttle.info() and Shuttle.ask() for a small poem."""
     result: dict = {"url": harness.url}
     info = None
     print(f"\n=== {harness.name}: модели и лимиты ===", flush=True)
@@ -123,9 +123,9 @@ async def probe(harness: Harness, client: BridgeClient) -> dict:
 async def check_smells(harness: Harness, model: str, target: EvaluationTarget,
                        profile, output_dir: Path, *, batch_size: int,
                        use_session: bool) -> dict:
-    """Part 2: compose the checker with an Agent Bridge transport provider."""
+    """Part 2: compose the checker with an Agent Shuttle transport provider."""
     print(f"\n=== {harness.name}: code smells ===", flush=True)
-    provider = AgentBridgeProvider(harness.url, harness.name, tool_policy=harness.tool_policy)
+    provider = AgentShuttleProvider(harness.url, harness.name, tool_policy=harness.tool_policy)
 
     def trace(event: dict) -> None:
         print(f"[debug:{harness.name}] {json.dumps(event, ensure_ascii=False)}",
@@ -205,7 +205,7 @@ async def run(args: argparse.Namespace) -> int:
                                     + "-" + uuid4().hex[:6])
     output_dir.mkdir(parents=True, exist_ok=False)
     results: dict = {"target": str(args.target), "part": args.part, "harnesses": {}}
-    client = BridgeClient()
+    client = ShuttleClient()
 
     if args.agents == "auto":
         available = []
@@ -230,13 +230,13 @@ async def run(args: argparse.Namespace) -> int:
             workspace=(args.target.parent if target is not None else Path.cwd()),
             model=harness.model, command=installed.get(harness.name),
             profile_path=profiles.get(harness.name), ollama_url=args.ollama_url,
-            log_path=output_dir / f"{harness.name}.bridge.log",
+            log_path=output_dir / f"{harness.name}.shuttle.log",
             start_if_missing=not (args.no_auto_start or harness.name in args.explicit_urls),
         )
         try:
             async with connect_harness(launch, client=client) as connection:
                 print(f"[discovery] {harness.name}: "
-                      f"{'started temporary Bridge' if connection.started else 'existing Bridge'} "
+                      f"{'started temporary Shuttle' if connection.started else 'existing Shuttle'} "
                       f"at {connection.url}; log={connection.log_path}", flush=True)
                 if args.part in {"all", "agents"}:
                     entry.update(await probe(harness, client))

@@ -12,6 +12,28 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 
 
 class CheckerMcpTest(unittest.IsolatedAsyncioTestCase):
+    async def test_antigravity_turn_uses_the_project_deadline(self):
+        from agent_code_checker.mcp_server import evaluate
+
+        launches = []
+
+        @asynccontextmanager
+        async def connect(launch):
+            launches.append(launch)
+            yield SimpleNamespace(url=launch.url)
+
+        with tempfile.TemporaryDirectory() as folder, \
+             patch("agent_code_checker.mcp_server.connect_harness", connect), \
+             patch("agent_code_checker.mcp_server.agent_shuttle_provider_from_name"), \
+             patch("agent_code_checker.mcp_server.EvaluationService") as service:
+            service.return_value.evaluate = AsyncMock(return_value=SimpleNamespace(to_dict=lambda: {"ok": True}))
+            await evaluate(
+                "project", folder, provider="agent-shuttle:antigravity",
+                rules=["duplicate_code"], max_project_seconds=900,
+            )
+
+        self.assertEqual(launches[0].agy_turn_timeout_seconds, 900)
+
     async def test_project_tool_starts_matching_read_only_harness(self):
         from agent_code_checker.mcp_server import evaluate
 
@@ -24,11 +46,11 @@ class CheckerMcpTest(unittest.IsolatedAsyncioTestCase):
 
         with tempfile.TemporaryDirectory() as folder, \
              patch("agent_code_checker.mcp_server.connect_harness", connect), \
-             patch("agent_code_checker.mcp_server.agent_bridge_provider_from_name"), \
+             patch("agent_code_checker.mcp_server.agent_shuttle_provider_from_name"), \
              patch("agent_code_checker.mcp_server.EvaluationService") as service:
             service.return_value.evaluate = AsyncMock(return_value=SimpleNamespace(to_dict=lambda: {"ok": True}))
             result = await evaluate(
-                "project", folder, provider="agent-bridge:codex", rules=["duplicate_code"],
+                "project", folder, provider="agent-shuttle:codex", rules=["duplicate_code"],
             )
 
         self.assertEqual(result, {"ok": True})
@@ -41,8 +63,8 @@ class CheckerMcpTest(unittest.IsolatedAsyncioTestCase):
             args=["-m", "agent_code_checker.mcp_server"],
             env={
                 **os.environ,
-                "BRIDGE_CODEX_URL": "http://127.0.0.1:8765",
-                "BRIDGE_ANTIGRAVITY_URL": "http://127.0.0.1:8766",
+                "AGENT_SHUTTLE_CODEX_URL": "http://127.0.0.1:8765",
+                "AGENT_SHUTTLE_ANTIGRAVITY_URL": "http://127.0.0.1:8766",
             },
         )
         async with stdio_client(params) as (reader, writer):

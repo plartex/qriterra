@@ -265,8 +265,9 @@ class EvaluationReport:
     warnings: tuple[str, ...] = field(default_factory=tuple)
     debug_trace: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     schema_version: str = "1.0"
+    source_snapshot: dict[str, Any] | None = None
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, *, shareable: bool = False) -> dict[str, Any]:
         result = {
             "schema_version": "2.0" if self.target.kind == "project" else self.schema_version,
             "run_id": self.run_id,
@@ -279,10 +280,15 @@ class EvaluationReport:
         }
         if self.debug_trace:
             result["debug_trace"] = list(self.debug_trace)
+        if self.source_snapshot is not None:
+            result["source_snapshot"] = self.source_snapshot
+        if shareable:
+            from .privacy import shareable_report
+            result = shareable_report(result, workspace=self.target.workspace)
         return result
 
-    def to_json(self, *, indent: int | None = 2) -> str:
-        return json.dumps(self.to_dict(), ensure_ascii=False, indent=indent)
+    def to_json(self, *, indent: int | None = 2, shareable: bool = False) -> str:
+        return json.dumps(self.to_dict(shareable=shareable), ensure_ascii=False, indent=indent)
 
 
 def _reject_escaping_symlinks(project: Path) -> None:

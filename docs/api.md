@@ -23,8 +23,8 @@ from qriterra import (
     CatalogError,
 )
 from qriterra.providers import (
-    AgentBridgeProvider,
-    agent_bridge_provider_from_name,
+    AgentShuttleProvider,
+    agent_shuttle_provider_from_name,
     FakeAgentProvider,
 )
 ```
@@ -243,12 +243,12 @@ Formats an `EvaluationReport` into a test-runner-like summary string suitable fo
 
 ## 3. Providers
 
-### `AgentBridgeProvider`
+### `AgentShuttleProvider`
 
 Connects to an Agent Shuttle A2A server.
 
 ```python
-class AgentBridgeProvider:
+class AgentShuttleProvider:
     def __init__(
         self,
         peer_url: str,
@@ -262,20 +262,20 @@ class AgentBridgeProvider:
 - `agent`: Harness identifier (e.g. `"codex"`, `"antigravity"`, `"opencode"`).
 - `tool_policy`: Sandbox policy (`"no_tools"`, `"read_only"`, `"workspace_write"`, `"full_access"`).
 
-### `agent_bridge_provider_from_name`
+### `agent_shuttle_provider_from_name`
 
 Helper to resolve providers from standard aliases or environment variables:
 
 ```python
-def agent_bridge_provider_from_name(
+def agent_shuttle_provider_from_name(
     name: str,
     *,
     peer_url: str | None = None,
     tool_policy: str | None = None,
-) -> AgentBridgeProvider: ...
+) -> AgentShuttleProvider: ...
 ```
 
-Supported names: `codex`, `antigravity`, `opencode`, `claude_code`, or prefixed variants (`agent-shuttle:codex`). The former `agent-bridge:` prefix remains supported. Falls back to environment variables (`BRIDGE_CODEX_URL`, `BRIDGE_ANTIGRAVITY_URL`, etc.) if `peer_url` is omitted.
+Supported names: `codex`, `antigravity`, `opencode`, `claude_code`, or prefixed variants (`agent-shuttle:codex`). Falls back to environment variables (`AGENT_SHUTTLE_CODEX_URL`, `AGENT_SHUTTLE_ANTIGRAVITY_URL`, etc.) if `peer_url` is omitted.
 
 ### `FakeAgentProvider`
 
@@ -303,11 +303,11 @@ from qriterra import (
     format_text_report,
     load_code_smells_profile,
 )
-from qriterra.providers import AgentBridgeProvider
+from qriterra.providers import AgentShuttleProvider
 
 async def run_check():
     # 1. Connect to Codex harness
-    provider = AgentBridgeProvider(
+    provider = AgentShuttleProvider(
         peer_url="http://127.0.0.1:8765",
         agent="codex",
         tool_policy="read_only",

@@ -25,15 +25,11 @@ Qriterra enforces tool policies to restrict what capabilities the underlying age
 | `no_tools` | No tool calls permitted; closed-book evaluation. | `snippet`, `file` | Safest. The agent cannot touch the disk or run commands. |
 | `read_only` | Read and search tools within the workspace. | `project` | Read-only inspection. The agent cannot modify source code. |
 | `workspace_write` | Can create or modify files inside the workspace. | Specific workflows | Agent can alter files within the project root. |
-| `full_access` | Unrestricted tool execution. | `project` (Antigravity) | Highest risk. |
+| `full_access` | Unrestricted tool execution. | Explicitly authorized workflows | Highest risk. |
 
-### Operational Risk: Antigravity and `full_access`
+### Antigravity tool enforcement
 
-> [!WARNING]
-> **Antigravity CLI Sandbox Limitations**:
-> The underlying Google Antigravity CLI does not currently enforce a restricted read-only execution sandbox when running in automated headless mode. Consequently, running project evaluations with Antigravity requires `--tool-policy full_access`.
->
-> Although Qriterra explicitly instructs the agent never to modify files or execute code, **this restriction is enforced solely at the prompt level, not by an operating-system sandbox**. When analyzing untrusted or third-party repositories with Antigravity, run in an isolated environment (such as a disposable virtual machine or container).
+Agent Shuttle verifies a per-conversation `PreToolUse` hook before running Antigravity. Qriterra defaults to `read_only`: native reading/search is allowed within the project; writes, shell, MCP, subagents, and external paths are denied. This is tool enforcement rather than an OS sandbox. `full_access` remains an explicit opt-in. Launch the Bridge in the signed-in user's process context so the CLI can access its account profile.
 
 ---
 

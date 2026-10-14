@@ -10,7 +10,7 @@ from mcp.server.fastmcp import FastMCP
 
 from . import EvaluationService, EvaluationTarget, load_code_smells_profile
 from .cli import _project_harness
-from .providers import agent_bridge_provider_from_name
+from .providers import agent_shuttle_provider_from_name
 
 
 mcp = FastMCP(
@@ -63,10 +63,10 @@ async def evaluate(
             harness, port, env_name = _project_harness(provider)
             url = os.environ.get(env_name) or f"http://127.0.0.1:{port}"
         else:
-            harness = provider.strip().lower().removeprefix("agent-shuttle:").removeprefix("agent-bridge:")
+            harness = provider.strip().lower().removeprefix("agent-shuttle:")
             url = agent_url
         selected_policy = None if harness == "codex" else "read_only"
-        agent_provider = agent_bridge_provider_from_name(
+        agent_provider = agent_shuttle_provider_from_name(
             provider, peer_url=url, tool_policy=selected_policy,
         )
         if agent_url is None:
@@ -75,6 +75,7 @@ async def evaluate(
                 name=harness, url=url, workspace=evaluation_target.path, model=model,
                 profile_path=Path(harness_profile) if harness_profile else None,
                 tool_policy="read_only",
+                agy_turn_timeout_seconds=max_project_seconds if harness == "antigravity" else 300,
             )
             async with connect_harness(launch):
                 report = await EvaluationService(agent_provider).evaluate(
@@ -95,7 +96,7 @@ async def evaluate(
     else:
         if harness_profile is not None:
             raise ValueError("harness_profile is only valid for project targets")
-        agent_provider = agent_bridge_provider_from_name(
+        agent_provider = agent_shuttle_provider_from_name(
             provider, peer_url=agent_url, tool_policy=tool_policy,
         )
         report = await EvaluationService(agent_provider).evaluate(

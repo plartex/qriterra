@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qriterra"
-version = "0.5.0"
+version = "0.8.0"
 description = "Extensible, evidence-backed evaluation framework"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Aleksandr Kovalenko" }]
 dependencies = [
-  "agent-shuttle>=0.5.0,<1",
+  "pathspec>=0.12,<2",
+  "agent-shuttle>=0.8.0,<1",
   "mcp>=1.30,<2",
 ]
 

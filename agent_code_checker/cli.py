@@ -12,19 +12,19 @@ from pathlib import Path
 from agent_shuttle import HarnessLaunch, connect_harness
 
 from . import EvaluationService, EvaluationTarget, format_text_report, load_code_smells_profile
-from .providers import agent_bridge_provider_from_name
+from .providers import agent_shuttle_provider_from_name
 
 
 _PROJECT_HARNESSES = {
-    "codex": ("codex", 8765, "BRIDGE_CODEX_URL"),
-    "antigravity": ("antigravity", 8766, "BRIDGE_ANTIGRAVITY_URL"),
-    "opencode": ("opencode", 8767, "BRIDGE_OPENCODE_URL"),
-    "claude_code": ("claude_code", 8768, "BRIDGE_CLAUDE_CODE_URL"),
+    "codex": ("codex", 8765, "AGENT_SHUTTLE_CODEX_URL"),
+    "antigravity": ("antigravity", 8766, "AGENT_SHUTTLE_ANTIGRAVITY_URL"),
+    "opencode": ("opencode", 8767, "AGENT_SHUTTLE_OPENCODE_URL"),
+    "claude_code": ("claude_code", 8768, "AGENT_SHUTTLE_CLAUDE_CODE_URL"),
 }
 
 
 def _project_harness(provider_name: str) -> tuple[str, int, str]:
-    name = provider_name.strip().lower().removeprefix("agent-shuttle:").removeprefix("agent-bridge:")
+    name = provider_name.strip().lower().removeprefix("agent-shuttle:")
     if name not in _PROJECT_HARNESSES:
         raise ValueError("Automatic project launch requires codex, antigravity, opencode or claude_code")
     return _PROJECT_HARNESSES[name]
@@ -58,6 +58,8 @@ def main() -> None:
         help="LLM-facing rule language; auto uses English for the bundled catalog",
     )
     evaluate.add_argument("--json", action="store_true", dest="json_output")
+    evaluate.add_argument("--shareable", action="store_true",
+                          help="Export JSON without debug/session IDs and with known secrets and local paths masked; review source excerpts before sharing")
     evaluate.add_argument(
         "--debug", action="store_true",
         help="Print batch-by-batch JSON trace to stderr and include it in the report",
@@ -99,14 +101,10 @@ def main() -> None:
                     harness, port, env_name = _project_harness(args.provider)
                     url = os.environ.get(env_name) or f"http://127.0.0.1:{port}"
                 else:
-                    harness = args.provider.strip().lower().removeprefix("agent-shuttle:").removeprefix("agent-bridge:")
+                    harness = args.provider.strip().lower().removeprefix("agent-shuttle:")
                     url = args.agent_url
-                provider_policy = args.tool_policy or (
-                    "full_access" if harness == "antigravity" else "read_only"
-                )
-                if harness == "antigravity" and provider_policy != "full_access":
-                    raise ValueError("Antigravity project evaluation requires full_access")
-                provider = agent_bridge_provider_from_name(
+                provider_policy = args.tool_policy or "read_only"
+                provider = agent_shuttle_provider_from_name(
                     args.provider, peer_url=url, tool_policy=provider_policy,
                 )
                 if args.agent_url is None:
@@ -114,6 +112,7 @@ def main() -> None:
                     launch = HarnessLaunch(
                         name=harness, url=url, workspace=target.path, model=args.model,
                         profile_path=args.harness_profile, tool_policy=provider_policy,
+                        agy_turn_timeout_seconds=args.max_project_seconds if harness == "antigravity" else 300,
                     )
                     async with connect_harness(launch):
                         return await EvaluationService(provider).evaluate(
@@ -125,7 +124,7 @@ def main() -> None:
             else:
                 if args.harness_profile is not None:
                     raise ValueError("--harness-profile is only valid for project targets")
-                provider = agent_bridge_provider_from_name(
+                provider = agent_shuttle_provider_from_name(
                     args.provider, peer_url=args.agent_url, tool_policy=args.tool_policy,
                 )
             return await EvaluationService(provider).evaluate(
@@ -149,7 +148,8 @@ def main() -> None:
         report = asyncio.run(run_evaluation())
     except ValueError as exc:
         parser.error(str(exc))
-    rendered = report.to_json() if args.json_output else format_text_report(report)
+    rendered = report.to_json(shareable=True) if args.shareable else (
+        report.to_json() if args.json_output else format_text_report(report))
     if args.output:
         args.output.write_text(rendered + "\n", encoding="utf-8")
     else:

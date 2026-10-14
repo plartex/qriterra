@@ -1,0 +1,8 @@
+include docs/privacy.md
+include examples/sample_target.py
+global-exclude *.session.*.json *.last-batch.json *.recheck.json *.log *.sqlite *.sqlite3 *.db
+global-exclude .env .env.* credentials* secrets* *.pem *.key
+prune .runtime
+prune debug-runs
+prune examples/debug-runs
+prune examples/.idea

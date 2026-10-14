@@ -14,7 +14,7 @@ import json
 import re
 from pathlib import Path
 
-from agent_bridge import BridgeClient, HarnessLaunch, connect_harness
+from agent_shuttle import ShuttleClient, HarnessLaunch, connect_harness
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -107,7 +107,7 @@ def _save_json(path: Path, value: object) -> None:
     temporary.replace(path)
 
 
-async def translate_batch(client: BridgeClient, entries: list[dict[str, str]]) -> dict[str, str]:
+async def translate_batch(client: ShuttleClient, entries: list[dict[str, str]]) -> dict[str, str]:
     prompt = (
         "Translate the following Russian code-smell catalog prose into faithful English. "
         "This is translation, not summarization or rewriting: retain every condition, threshold, "
@@ -164,13 +164,13 @@ async def run(limit: int | None, batch_size: int) -> None:
     print(f"Prose fields: {len(entries)}; cached: {len(translated)}; remaining this run: {len(remaining)}", flush=True)
 
     if remaining:
-        client = BridgeClient(timeout_seconds=120)
+        client = ShuttleClient(timeout_seconds=120)
         launch = HarnessLaunch(
             name="antigravity", url=URL, workspace=ROOT, model=MODEL,
-            log_path=RUNTIME / "bridge.log",
+            log_path=RUNTIME / "shuttle.log",
         )
         async with connect_harness(launch, client=client) as connection:
-            print(f"Antigravity Bridge: {connection.url}; started={connection.started}", flush=True)
+            print(f"Antigravity Shuttle: {connection.url}; started={connection.started}", flush=True)
             for offset in range(0, len(remaining), batch_size):
                 batch = remaining[offset:offset + batch_size]
                 print(f"Batch {offset // batch_size + 1}: {batch[0]['path']} ... {batch[-1]['path']}", flush=True)

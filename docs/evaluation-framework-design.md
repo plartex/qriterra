@@ -6,7 +6,7 @@
 
 ## 1. Назначение
 
-В составе Agent Bridge требуется универсальный механизм проверок, который принимает цель анализа, выбирает профиль проверок и поручает LLM-агенту выполнить правила пакетами. Первый профиль — обнаружение запахов кода из `code_smells.min.json`.
+В составе Agent Shuttle требуется универсальный механизм проверок, который принимает цель анализа, выбирает профиль проверок и поручает LLM-агенту выполнить правила пакетами. Первый профиль — обнаружение запахов кода из `code_smells.min.json`.
 
 Система должна поддерживать три вида цели:
 
@@ -27,7 +27,7 @@ Code quality: 87.3% · Assessment coverage: 96.2%
 ## 2. Принятые решения
 
 1. **MVP использует только LLM-анализ.** AST-парсеры, линтеры, тест-раннеры и бенчмарки не входят в первую версию.
-2. **Ядро не зависит от конкретного агента.** Agent Bridge, нативный Codex SDK и другие способы запуска подключаются через `AgentProvider`.
+2. **Ядро не зависит от конкретного агента.** Agent Shuttle, нативный Codex SDK и другие способы запуска подключаются через `AgentProvider`.
 3. **Правило — аналог теста.** Отсутствие запаха означает `passed`, обнаружение — `failed`.
 4. **Агент только выявляет нарушения.** Генерация рекомендаций, патчей и рефакторинг не входят в задачу.
 5. **Правила выполняются пакетами.** Значение по умолчанию — не более 10 правил в одном запросе. Размер пакета конфигурируется.
@@ -102,7 +102,7 @@ agent-code-checker/                    # отдельный Git-репозито
       llm.py           # единственная реализация в MVP
     providers/
       base.py
-      agent_bridge.py
+      agent_shuttle.py
       fake.py
     profiles/data/
       code_smells.min.json
@@ -110,7 +110,7 @@ agent-code-checker/                    # отдельный Git-репозито
 
 `CheckExecutor` выполняет проверки и возвращает общие `CheckResult`. В MVP существует только `LlmCheckExecutor`, использующий `AgentProvider`. В будущем линтер, test runner или benchmark runner реализует `CheckExecutor` напрямую и не должен притворяться агентом.
 
-Чекер выделен в самостоятельную библиотеку. Agent Bridge является только
+Чекер выделен в самостоятельную библиотеку. Agent Shuttle является только
 транспортной зависимостью; доменные модели, правила и отчёты находятся здесь.
 
 ## 5. Модель цели
@@ -343,11 +343,11 @@ class AgentProvider(Protocol):
 - доступен ли structured output;
 - максимальный рекомендуемый размер входа.
 
-### 12.1. Agent Bridge provider
+### 12.1. Agent Shuttle provider
 
 Для сниппета и файла адаптер передаёт встроенный текст. Для проекта он
 открывает сессию и до модельного вызова сверяет каталог цели с каноническим
-workspace сервера Bridge и подтверждает поддержку read-only инструментов.
+workspace сервера Shuttle и подтверждает поддержку read-only инструментов.
 CLI/MCP могут временно запустить сервер именно в каталоге цели.
 
 Поддержка динамического workspace может быть добавлена в протокол отдельно. Она не должна реализовываться простой передачей произвольного пути без проверки разрешённых корней.
@@ -386,7 +386,7 @@ assessment_coverage =
   "run_id": "...",
   "profile": {"id": "code_smells", "version": "1.0"},
   "target": {"kind": "project", "path": "D:/projects/example"},
-  "provider": {"id": "agent_bridge", "agent": "codex", "model": null, "reasoning_effort": null},
+  "provider": {"id": "agent_shuttle", "agent": "codex", "model": null, "reasoning_effort": null},
   "summary": {
     "total": 80,
     "passed": 72,
@@ -412,7 +412,7 @@ assessment_coverage =
 report = await evaluator.evaluate(
     target=EvaluationTarget.file("D:/projects/example/service.py"),
     profile="code_smells",
-    provider="agent_bridge:codex",
+    provider="agent_shuttle:codex",
     model=None,
     batch_size=10,
 )
@@ -422,8 +422,8 @@ report = await evaluator.evaluate(
 
 ```powershell
 agent-code-checker evaluate snippet --code "def foo(): ..." --language python
-agent-code-checker evaluate file .\src\service.py --provider agent-bridge:codex
-agent-code-checker evaluate project .\ --provider agent-bridge:codex --json
+agent-code-checker evaluate file .\src\service.py --provider agent-shuttle:codex
+agent-code-checker evaluate project .\ --provider agent-shuttle:codex --json
 ```
 
 Общие параметры:
@@ -490,7 +490,7 @@ evaluate(
 
 - CLI для snippet/file/project с fake provider;
 - MCP-вызов с fake provider;
-- Agent Bridge adapter поверх fake A2A backend;
+- Agent Shuttle adapter поверх fake A2A backend;
 - частичный сбой одного пакета без потери остальных результатов.
 
 Live-проверки настоящими агентами остаются opt-in и не запускаются в CI.

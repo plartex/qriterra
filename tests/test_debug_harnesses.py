@@ -9,13 +9,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from agent_bridge import BridgeConnection, BridgeResult
+from agent_shuttle import ShuttleConnection, ShuttleResult
 from examples import debug_harnesses as debug
 
 
 @asynccontextmanager
 async def connected(launch, *, client=None):
-    yield BridgeConnection(launch.url, started=False)
+    yield ShuttleConnection(launch.url, started=False)
 
 
 class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
@@ -36,7 +36,7 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
 
                 async def ask(self, url, prompt, **kwargs):
                     events.append("poem")
-                    return BridgeResult(url, None, None, "TASK_STATE_COMPLETED", "Стих")
+                    return ShuttleResult(url, None, None, "TASK_STATE_COMPLETED", "Стих")
 
             class FakeService:
                 def __init__(self, provider):
@@ -49,7 +49,7 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
                         to_json=lambda: '{"summary":{"passed":1}}',
                     )
 
-            with patch.object(debug, "BridgeClient", return_value=FakeClient()), \
+            with patch.object(debug, "ShuttleClient", return_value=FakeClient()), \
                  patch.object(debug, "connect_harness", connected), \
                  patch.object(debug, "EvaluationService", FakeService), \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
@@ -86,11 +86,11 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
                         "models": ["gemini-3.8-flash-medium"]}}
 
                 async def ask(self, url, prompt, **kwargs):
-                    return BridgeResult(url, None, None, "TASK_STATE_COMPLETED", "Стих")
+                    return ShuttleResult(url, None, None, "TASK_STATE_COMPLETED", "Стих")
 
             with patch.object(debug, "discover_harnesses", return_value={
                 "antigravity": "C:/tools/agy.exe"}), \
-                 patch.object(debug, "BridgeClient", return_value=FakeClient()), \
+                 patch.object(debug, "ShuttleClient", return_value=FakeClient()), \
                  patch.object(debug, "connect_harness", connected), \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 status = await debug.run(args)
@@ -114,10 +114,10 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
 
                 async def ask(self, url, prompt, **kwargs):
                     self.calls.append(("ask", url, kwargs))
-                    return BridgeResult(url, None, None, "TASK_STATE_COMPLETED", "Стих")
+                    return ShuttleResult(url, None, None, "TASK_STATE_COMPLETED", "Стих")
 
             fake = FakeClient()
-            with patch.object(debug, "BridgeClient", return_value=fake), \
+            with patch.object(debug, "ShuttleClient", return_value=fake), \
                  patch.object(debug, "connect_harness", connected), \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 status = await debug.run(args)
@@ -149,7 +149,7 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
                     assert kwargs["model"] == "qwen3.5:9b"
                     return report
 
-            with patch.object(debug, "BridgeClient") as client, \
+            with patch.object(debug, "ShuttleClient") as client, \
                  patch.object(debug, "connect_harness", connected), \
                  patch.object(debug, "EvaluationService", FakeService), \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
@@ -164,11 +164,11 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as folder:
             args = debug.parse_args(["--part", "agents", "--agents", "codex",
                                      "--output-dir", folder])
-            with patch.object(debug, "BridgeClient") as client, \
+            with patch.object(debug, "ShuttleClient") as client, \
                  patch.object(debug, "connect_harness", connected), \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 client.return_value.info = AsyncMock(side_effect=RuntimeError("quota unavailable"))
-                client.return_value.ask = AsyncMock(return_value=BridgeResult(
+                client.return_value.ask = AsyncMock(return_value=ShuttleResult(
                     args.codex_url, None, None, "TASK_STATE_COMPLETED", "Стих",
                 ))
                 status = await debug.run(args)
@@ -186,13 +186,13 @@ class DebugHarnessesTests(unittest.IsolatedAsyncioTestCase):
             @asynccontextmanager
             async def capture(launch, *, client=None):
                 launches.append(launch)
-                yield BridgeConnection(launch.url, started=False)
+                yield ShuttleConnection(launch.url, started=False)
 
-            with patch.object(debug, "BridgeClient") as client, \
+            with patch.object(debug, "ShuttleClient") as client, \
                  patch.object(debug, "connect_harness", capture), \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 client.return_value.info = AsyncMock(return_value={})
-                client.return_value.ask = AsyncMock(return_value=BridgeResult(
+                client.return_value.ask = AsyncMock(return_value=ShuttleResult(
                     args.codex_url, None, None, "TASK_STATE_COMPLETED", "Стих"))
                 self.assertEqual(await debug.run(args), 0)
             self.assertFalse(launches[0].start_if_missing)

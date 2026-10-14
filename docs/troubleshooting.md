@@ -19,7 +19,7 @@ qriterra evaluate file src/service.py --provider agent-shuttle:codex --debug
 | Event Name | Description |
 |---|---|
 | `run_started` | Initialized run parameters, total rules, planned batches, and timeout limits. |
-| `session_opened` | Established a persistent A2A session (`session_id`). |
+| `session_opened` | Established a persistent A2A session; its identifier is omitted. |
 | `batch_started` | Started processing a batch (`batch_id`, `scope`, `rule_ids`). |
 | `agent_request` | Sent prompt to the model (includes `attempt` and `prompt_bytes`). |
 | `agent_waiting` | Emitted every 10 seconds while awaiting model generation (`waiting_seconds`). |
@@ -35,9 +35,9 @@ qriterra evaluate file src/service.py --provider agent-shuttle:codex --debug
 
 ## 2. Common Errors and Resolutions
 
-### 1. `Bridge workspace ... does not match project ...`
+### 1. `Shuttle workspace ... does not match project ...`
 - **Cause**: An existing Agent Shuttle server was launched in a different directory than the target project directory.
-- **Fix**: Either start the Bridge server in the exact project directory using `--workspace <path>`, or omit `--agent-url` to let the CLI automatically launch a temporary server in the project folder.
+- **Fix**: Either start the Shuttle server in the exact project directory using `--workspace <path>`, or omit `--agent-url` to let the CLI automatically launch a temporary server in the project folder.
 
 ### 2. `Antigravity project evaluation requires full_access`
 - **Cause**: Project evaluation was attempted with Google Antigravity without granting `full_access`.

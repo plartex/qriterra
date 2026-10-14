@@ -16,6 +16,54 @@ class BatchProtocolError(ValueError):
     pass
 
 
+def recover_valid_project_results(
+    responses: tuple[str, ...], *, batch_id: str,
+    rules: tuple[RuleDefinition, ...], target: EvaluationTarget,
+) -> tuple[CheckResult, ...]:
+    """Keep independently validated rules when a project batch is malformed.
+
+    A rule is accepted only through the regular validator, including exact
+    source excerpts. Missing or invalid rules remain explicit errors.
+    """
+    if target.kind != "project":
+        raise ValueError("Project result recovery requires a project target")
+    recovered: dict[str, CheckResult] = {}
+    problems: dict[str, str] = {}
+    for raw in responses:
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict) or payload.get("schema_version") != "2.0" or payload.get("batch_id") != batch_id:
+            continue
+        items = payload.get("results")
+        if not isinstance(items, list):
+            continue
+        for rule in rules:
+            matches = [item for item in items if isinstance(item, dict) and item.get("rule_id") == rule.id]
+            if len(matches) != 1:
+                problems[rule.id] = f"Expected one result for rule {rule.id}"
+                continue
+            one = json.dumps({"schema_version": "2.0", "batch_id": batch_id, "results": matches})
+            try:
+                recovered[rule.id] = validate_batch_response(
+                    one, batch_id=batch_id, rules=(rule,), target=target,
+                )[0]
+            except BatchProtocolError as exc:
+                problems[rule.id] = str(exc)
+    output = []
+    for rule in rules:
+        if rule.id in recovered:
+            output.append(recovered[rule.id])
+        else:
+            reason = problems.get(rule.id, f"No valid response for rule {rule.id}")
+            output.append(CheckResult(
+                rule_id=rule.id, status="error", severity=rule.severity,
+                reason=reason, coverage=ProjectCoverage("partial", (), (reason,)),
+            ))
+    return tuple(output)
+
+
 def validate_batch_response(
     raw_response: str,
     *,
@@ -82,6 +130,8 @@ def _parse_project_result(source: dict[str, Any], rule: RuleDefinition, target: 
             _parse_evidence(entry, rule.id, target, evidence_index)
             for evidence_index, entry in enumerate(raw_evidence)
         )
+        if any(entry.path not in coverage.inspected_paths for entry in evidence):
+            raise BatchProtocolError(f"Rule {rule.id} finding source is not declared as inspected")
         findings.append(ProjectFinding(item["summary"].strip(), evidence))
     reason = source.get("reason")
     if reason is not None and (not isinstance(reason, str) or not reason.strip()):
@@ -126,6 +176,8 @@ def _parse_project_coverage(source: Any, rule_id: str, target: EvaluationTarget)
             raise BatchProtocolError(f"Rule {rule_id} inspected path points outside the project") from exc
         if not candidate.exists():
             raise BatchProtocolError(f"Rule {rule_id} inspected path does not exist")
+        if not candidate.is_file():
+            raise BatchProtocolError(f"Rule {rule_id} inspected path must be a file")
         normalized.append(relative.as_posix())
     return ProjectCoverage(source["status"], tuple(normalized), tuple(item.strip() for item in limitations))
 

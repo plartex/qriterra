@@ -55,9 +55,9 @@ Supported agent harnesses include:
 - **OpenCode**: Local models (such as `qwen3.5:9b` on Ollama) or custom OpenAI-compatible endpoints.
 - **Claude Code**: Anthropic Claude models running through Claude Code CLI.
 
-### Starting Persistent Bridge Instances
+### Starting Persistent Shuttle Instances
 
-In separate terminals, you can launch long-running Bridge servers scoped to your target workspace:
+In separate terminals, you can launch long-running Shuttle servers scoped to your target workspace:
 
 ```powershell
 # Terminal 1: Codex harness on port 8765
@@ -71,10 +71,10 @@ agent-shuttle serve profile --profile path/to/opencode.profile.json --workspace 
 ```
 
 You can point Qriterra to these instances using `--agent-url` or standard environment variables:
-- `BRIDGE_CODEX_URL=http://127.0.0.1:8765`
-- `BRIDGE_ANTIGRAVITY_URL=http://127.0.0.1:8766`
-- `BRIDGE_OPENCODE_URL=http://127.0.0.1:8767`
-- `BRIDGE_CLAUDE_CODE_URL=http://127.0.0.1:8768`
+- `AGENT_SHUTTLE_CODEX_URL=http://127.0.0.1:8765`
+- `AGENT_SHUTTLE_ANTIGRAVITY_URL=http://127.0.0.1:8766`
+- `AGENT_SHUTTLE_OPENCODE_URL=http://127.0.0.1:8767`
+- `AGENT_SHUTTLE_CLAUDE_CODE_URL=http://127.0.0.1:8768`
 
 ---
 
@@ -130,7 +130,7 @@ qriterra evaluate project path/to/project `
 ```
 
 > [!TIP]
-> **Automatic Temporary Harness**: If you do not provide `--agent-url`, Qriterra automatically spawns a temporary Bridge server scoped to the project directory for the duration of the scan and shuts it down upon completion.
+> **Automatic Temporary Harness**: If you do not provide `--agent-url`, Qriterra automatically spawns a temporary Shuttle server scoped to the project directory for the duration of the scan and shuts it down upon completion.
 
 ---
 
@@ -149,8 +149,8 @@ Add the `qriterra` entry to your MCP settings file (e.g., `claude_desktop_config
       "command": "path/to/.venv/Scripts/qriterra-mcp.exe",
       "args": [],
       "env": {
-        "BRIDGE_CODEX_URL": "http://127.0.0.1:8765",
-        "BRIDGE_ANTIGRAVITY_URL": "http://127.0.0.1:8766"
+        "AGENT_SHUTTLE_CODEX_URL": "http://127.0.0.1:8765",
+        "AGENT_SHUTTLE_ANTIGRAVITY_URL": "http://127.0.0.1:8766"
       }
     }
   }
